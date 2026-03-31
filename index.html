@@ -889,7 +889,7 @@ let imageData,pixels;
 
 // Population counters (fast, updated each tick)
 const POP={[T.PLANT]:0,[T.ANT]:0,[T.QUEEN]:0,[T.SPIDER]:0,[T.FUNGI]:0,[T.MITE]:0,[T.QUEEN_SPIDER]:0,[T.QUEEN_MITE]:0};
-const POP_MAX={[T.PLANT]:800,[T.ANT]:300,[T.QUEEN]:20,[T.SPIDER]:80,[T.FUNGI]:300,[T.MITE]:200,[T.QUEEN_SPIDER]:10,[T.QUEEN_MITE]:10};
+const POP_MAX={[T.PLANT]:800,[T.ANT]:300,[T.QUEEN]:100,[T.SPIDER]:80,[T.FUNGI]:300,[T.MITE]:200,[T.QUEEN_SPIDER]:10,[T.QUEEN_MITE]:10};
 
 // Population history — sampled every 100 ticks, max 80 samples kept
 const POP_HISTORY={
@@ -1073,7 +1073,14 @@ function envDamage(x,y,p){
     }
   }
   p.hp+=hp;p.energy=Math.min(255,p.energy+en);
-  if(p.hp<=0||p.energy<=0){set(x,y,null);popDecr(p);return true;}
+  if(p.hp<=0||p.energy<=0){
+    // Ants can "stand on" a plant cell by carrying it as an underlay (p.under).
+    // If the ant dies while on a plant, restore the plant.
+    if(p.t===T.ANT&&p.under?.t===T.PLANT){set(x,y,p.under);p.under=null;}
+    else set(x,y,null);
+    popDecr(p);
+    return true;
+  }
   return false;
 }
 
@@ -1158,58 +1165,129 @@ function stepPlant(x,y,p){
 function stepAnt(x,y,p){
   p.age++;
   const speed=p.g[1]/255,appetite=p.g[2]/255,aggression=p.g[3]/255;
+  // Plant traversal tuning: ants should usually climb across plants instead of eating corridors through them.
+  // Target: ~90% "walk" vs ~10% "eat" when stepping onto a plant cell.
+  // (Kept mostly constant so behavior is predictable across genomes.)
+  const plantConsumeChance=0.10;
   p.energy-=0.10+speed*0.10;
-  if(p.hp<=0||p.energy<=0){set(x,y,null);popDecr(p);return;}
+  if(p.hp<=0||p.energy<=0){
+    if(p.under?.t===T.PLANT){set(x,y,p.under);p.under=null;}
+    else set(x,y,null);
+    popDecr(p);
+    return;
+  }
   if(envDamage(x,y,p))return;
+  if(p.qcd===undefined) p.qcd=0; // queen-drop cooldown (ticks)
+  if(p.qcd>0) p.qcd--;
   const gx2=gv.x,gy2=gv.y,bx=x+gx2,by=y+gy2;
   const belowCell=inB(bx,by)?grid[idx(bx,by)]:null;
   // Drown in water
-  if(belowCell?.t===T.WATER){p.hp-=(5*(1-p.g[4]/255*0.5));if(p.hp<=0){set(x,y,null);popDecr(p);return;}}
+  if(belowCell?.t===T.WATER){
+    p.hp-=(5*(1-p.g[4]/255*0.5));
+    if(p.hp<=0){
+      if(p.under?.t===T.PLANT){set(x,y,p.under);p.under=null;}
+      else set(x,y,null);
+      popDecr(p);
+      return;
+    }
+  }
   const touchingSolid=getNeighbors(x,y).some(([nx,ny])=>{const np=grid[idx(nx,ny)];return np&&isSolid(np.t);});
-  if(!touchingSolid&&!belowCell){if(inB(bx,by)){swap(x,y,bx,by);return;}}
   const nbrs=getNeighbors(x,y);
+  p.cellX=x;p.cellY=y; // updated again if ant moves (for end-of-tick helpers)
+
+  function isPlantLikeCell(cell){
+    // Plants can exist "under" ants that are climbing.
+    return cell?.t===T.PLANT || (cell?.t===T.ANT && cell.under?.t===T.PLANT);
+  }
+  function isPlantLikeAt(cx,cy){
+    return isPlantLikeCell(get(cx,cy));
+  }
+  function plantNeighborCount(cx,cy){
+    let n=0;
+    for(const[nx,ny] of getNeighbors(cx,cy)) if(isPlantLikeAt(nx,ny)) n++;
+    return n;
+  }
+  function isPlantInterior(cx,cy){
+    // Interior = mostly surrounded by plants (diagonals included via getNeighbors).
+    // This makes ants nibble inside dense clusters, but climb around sparse edges.
+    return plantNeighborCount(cx,cy)>=6;
+  }
+  function isPlantEdgeCell(cx,cy){
+    // Edge = has at least one non-plant neighbor.
+    return plantNeighborCount(cx,cy)<=5;
+  }
+
+  function moveAntTo(nx,ny,{consumePlant=false}={}){
+    // Restore whatever was under the ant at the origin (usually a plant), then move.
+    const originI=idx(x,y),destI=idx(nx,ny);
+    const dest=grid[destI];
+    grid[originI]=(p.under?.t===T.PLANT)?p.under:null;
+    p.under=null;
+    if(dest?.t===T.PLANT){
+      if(consumePlant){
+        popDecr(dest);
+      } else {
+        p.under=dest; // carry plant as underlay while the ant occupies this cell
+      }
+    }
+    grid[destI]=p;
+    p.cellX=nx;p.cellY=ny;
+  }
+
+  if(!touchingSolid&&!belowCell){
+    if(inB(bx,by)){
+      // Falling through air: treat as normal movement (keep any underlay restored behind).
+      if(!get(bx,by)){ moveAntTo(bx,by); return; }
+    }
+  }
+
+  function tryDropQueenFromPlantEat(atX,atY){
+    // Only called right after a successful plant meal (+40 already applied, ant at atX,atY).
+    if(p.qcd>0) return false;
+    if(POP[T.QUEEN]>=POP_MAX[T.QUEEN]) return false;
+    // Enough reserves to “fund” a queen; kept low so it actually fires in play.
+    if(p.energy<115) return false;
+
+    const ng=mutateGenome(p.g,mutRate);
+    const localNbrs=getNeighbors(atX,atY);
+    const spawnCells=localNbrs.filter(([nx,ny])=>{
+      const t=get(nx,ny);
+      return (!t) || t.t===T.PLANT;
+    });
+
+    if(spawnCells.length){
+      const[qx,qy]=spawnCells[Math.floor(Math.random()*spawnCells.length)];
+      const prev=get(qx,qy);
+      if(prev?.t===T.PLANT) popDecr(prev);
+      grid[idx(qx,qy)]=agentWithStrain(T.QUEEN,ng,p.sid,{energy:200});
+      popIncr({t:T.QUEEN,sid:p.sid});
+      p.energy=Math.max(0,p.energy-75);
+      p.qcd=60;
+      return true;
+    }
+
+    // No empty/plant neighbor: this ant becomes the queen (same grid cell).
+    const cell=grid[idx(atX,atY)];
+    if(cell===p){
+      if(p.under?.t===T.PLANT){ popDecr(p.under); p.under=null; }
+      grid[idx(atX,atY)]=agentWithStrain(T.QUEEN,ng,p.sid,{energy:200});
+      popDecr(p);
+      popIncr({t:T.QUEEN,sid:p.sid});
+      p.qcd=60;
+      return true;
+    }
+    return false;
+  }
 
   // EATING
   for(const[nx,ny] of nbrs){
     const np=get(nx,ny);if(!np)continue;
-    if((np.t===T.PLANT||np.t===T.PLANT_WALL)&&Math.random()<appetite*0.3){
-      p.energy+=40;
-      if(np.t===T.PLANT)popDecr(np);
-      grid[idx(nx,ny)]=null;
-      // Rich plant meal — chance to immediately drop a queen on the spot
-      if(p.energy>=200&&Math.random()<0.04&&POP[T.QUEEN]<POP_MAX[T.QUEEN]){
-        const qSpot=nbrs.filter(([qx,qy])=>{
-          if(get(qx,qy))return false;
-          return getNeighbors(qx,qy).some(([ax,ay])=>{const ap=get(ax,ay);return ap&&isSolid(ap.t);});
-        });
-        if(qSpot.length){
-          const[qx,qy]=qSpot[Math.floor(Math.random()*qSpot.length)];
-          const ng=mutateGenome(p.g,mutRate);
-          grid[idx(qx,qy)]=agentWithStrain(T.QUEEN,ng,p.sid,{energy:180});
-          popIncr({t:T.QUEEN,sid:p.sid});
-          p.energy-=120; // laying a queen is costly
-        }
-      }
-      break;
-    }
+    // Plants are handled primarily via movement (stepping onto plant), not "side-biting",
+    // so ants don't tunnel straight through plant clusters.
     if(np.t===T.FUNGI&&Math.random()<appetite*0.25){
       p.energy+=30;
       popDecr(np);
       grid[idx(nx,ny)]=null;
-      // Fungi meal is intoxicating — higher queen-drop chance than plant
-      if(p.energy>=180&&Math.random()<0.06&&POP[T.QUEEN]<POP_MAX[T.QUEEN]){
-        const qSpot=nbrs.filter(([qx,qy])=>{
-          if(get(qx,qy))return false;
-          return getNeighbors(qx,qy).some(([ax,ay])=>{const ap=get(ax,ay);return ap&&isSolid(ap.t);});
-        });
-        if(qSpot.length){
-          const[qx,qy]=qSpot[Math.floor(Math.random()*qSpot.length)];
-          const ng=mutateGenome(p.g,mutRate);
-          grid[idx(qx,qy)]=agentWithStrain(T.QUEEN,ng,p.sid,{energy:180});
-          popIncr({t:T.QUEEN,sid:p.sid});
-          p.energy-=100;
-        }
-      }
       break;
     }
     if(np.t===T.MITE&&Math.random()<appetite*0.5){p.energy+=15;grid[idx(nx,ny)]=null;break;}
@@ -1218,7 +1296,7 @@ function stepAnt(x,y,p){
   p.energy=Math.min(255,p.energy);
 
   // OFFENSE: high-aggression ants throw salt/ash at spiders
-  if(aggression>0.6&&Math.random()<aggression*0.04){
+  if(aggression>0.85&&Math.random()<aggression*0.015){
     for(const[nx,ny] of nbrs){
       const np=get(nx,ny);
       if(np?.t===T.SPIDER||np?.t===T.QUEEN_SPIDER){
@@ -1229,7 +1307,7 @@ function stepAnt(x,y,p){
   }
 
   // ALPHA PROMOTION
-  if(!p.alpha&&aggression>0.7&&p.energy>200){
+  if(!p.alpha&&aggression>0.9&&p.energy>220){
     const nearClay=nbrs.some(([nx,ny])=>get(nx,ny)?.t===T.CLAY_HARD);
     if(nearClay){
       let alphaFound=false;
@@ -1254,23 +1332,14 @@ function stepAnt(x,y,p){
     }
   }
 
-  // QUEEN SPAWNING
-  if(p.energy>=220&&POP[T.QUEEN]<POP_MAX[T.QUEEN]){
-    let queenNear=false;
-    for(let dy=-20;dy<=20&&!queenNear;dy++)for(let dx=-20;dx<=20&&!queenNear;dx++){if(get(x+dx,y+dy)?.t===T.QUEEN)queenNear=true;}
-    if(!queenNear&&Math.random()<0.008){
-      const spawnCells=nbrs.filter(([nx,ny])=>{if(get(nx,ny))return false;return getNeighbors(nx,ny).some(([ax,ay])=>{const ap=get(ax,ay);return ap&&isSolid(ap.t);});});
-      if(spawnCells.length){const[qx2,qy2]=spawnCells[Math.floor(Math.random()*spawnCells.length)];const ng=mutateGenome(p.g,mutRate);grid[idx(qx2,qy2)]=agentWithStrain(T.QUEEN,ng,p.sid,{energy:180});popIncr({t:T.QUEEN,sid:p.sid});p.energy-=100;}
-    }
-  }
-  if(p.energy>160){for(const[nx,ny] of nbrs){const np=get(nx,ny);if(np?.t===T.QUEEN&&p.energy>80){np.energy=Math.min(255,np.energy+15);p.energy-=15;break;}}}
-
   // MOVEMENT — heavy tunnel preference + pheromone following; dig only when truly stuck
+  // (Queen feeding runs after movement so it doesn’t drain energy before plant-eat → queen lay.)
   if(Math.random()<0.55+speed*0.35){
     const moveCandidates=[],digCandidates=[];
     for(const[nx,ny] of nbrs){
       const np=get(nx,ny);
-      if(!np){
+      const isOpen=(!np)||np.t===T.PLANT; // ants can walk onto plants (plant preserved as underlay)
+      if(isOpen){
         let wc=0;
         for(const[ax,ay] of getNeighbors(nx,ny)){
           if(ax===x&&ay===y)continue;
@@ -1278,6 +1347,14 @@ function stepAnt(x,y,p){
           if(ap&&(isWall(ap.t)||ap.t===T.CLAY_HARD))wc++;
         }
         let score=wc>=3?20:wc>=1?8:1;
+        if(np?.t===T.PLANT){
+          // Prefer climbing plant edges, especially upward (against gravity).
+          score+=10;
+          const ddx=nx-x,ddy=ny-y;
+          const isUp=(ddx===-gx2&&ddy===-gy2);
+          if(isPlantEdgeCell(nx,ny)) score+=isUp?26:14;
+          else score+=isUp?10:2; // interior still ok, but less attractive than edges
+        }
         const phero=pheroGrid[idx(nx,ny)];
         if(!p.alpha){
           if(phero>0.05) score+=Math.floor(phero*30);
@@ -1303,7 +1380,24 @@ function stepAnt(x,y,p){
       if(trulySurrounded&&digCandidates.length){
         // fall through to dig
       } else {
-        swap(x,y,mx,my);
+        const dest=get(mx,my);
+        if(dest?.t===T.PLANT){
+          // When stepping onto a plant, either eat it or climb on top of it (plant preserved underlay).
+          const interior=isPlantInterior(mx,my);
+          // Mostly climb on edges, but allow a small nibble chance everywhere.
+          const edgeNibbleChance=0.02;
+          const eatChance=interior?plantConsumeChance:edgeNibbleChance;
+          if(Math.random()<eatChance){
+            p.energy+=40;
+            moveAntTo(mx,my,{consumePlant:true});
+            tryDropQueenFromPlantEat(mx,my);
+          } else {
+            moveAntTo(mx,my,{consumePlant:false});
+          }
+        } else {
+          if(!dest){ moveAntTo(mx,my); }
+        }
+        return;
       }
     }
     if(!moveCandidates.length||(moveCandidates[0][2]<=1&&moveCandidates.every(c=>c[2]<=1)&&digCandidates.length)){
@@ -1319,6 +1413,15 @@ function stepAnt(x,y,p){
           pheroGrid[idx(x,y)]=Math.min(1,pheroGrid[idx(x,y)]+0.4);
         }
       }
+    }
+  }
+
+  // Workers tithe to adjacent queen (after movement / eating this tick).
+  const axN=getNeighbors(p.cellX,p.cellY);
+  if(p.energy>160){
+    for(const[nx,ny] of axN){
+      const np=get(nx,ny);
+      if(np?.t===T.QUEEN&&p.energy>80){np.energy=Math.min(255,np.energy+15);p.energy-=15;break;}
     }
   }
 }
@@ -2402,6 +2505,22 @@ function render(){
   }
 
   ctx.putImageData(imageData,0,0);
+
+  // Queens: draw a slightly larger "crown glow" overlay so they read as bigger than a 1-cell dot.
+  ctx.save();
+  const qPad=Math.max(1,Math.floor(S*0.45));
+  for(let i=0;i<W*H;i++){
+    const p=grid[i];
+    if(p?.t!==T.QUEEN) continue;
+    const x=(i%W)*S, y=Math.floor(i/W)*S;
+    // Outer glow
+    ctx.fillStyle='rgba(255,140,0,0.22)';
+    ctx.fillRect(x-qPad,y-qPad,S+qPad*2,S+qPad*2);
+    // Inner bright core
+    ctx.fillStyle='rgba(255,210,120,0.18)';
+    ctx.fillRect(x-1,y-1,S+2,S+2);
+  }
+  ctx.restore();
 
   // Draw Frogstone tongues as canvas overlay — only hub cells with active tongue
   ctx.save();
