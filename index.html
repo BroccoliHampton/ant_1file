@@ -792,6 +792,7 @@ const T = {
   PROG_CLOUD:54,  // programmable cloud — emits any chosen element at set rate
   WEATHER_STATION:55, // programmable weather controller
   PROG_VOID:56,   // programmable void — destroys any chosen element on contact
+  OXYGEN:57,       // released by plants — rises, flammable at high concentration
   CUSTOM_BASE:100, // custom lab creatures start at 100+
 };
 
@@ -810,7 +811,7 @@ const DENSITY={
   [T.SEED]:4,[T.QUEEN_SPIDER]:5,[T.QUEEN_MITE]:5,
   // Classic elements
   [T.LAVA]:8,[T.STONE]:7,[T.STEAM]:0.1,[T.ICE]:3,
-  [T.SMOKE]:0.15,[T.WOOD]:4,[T.ASH]:0.8,[T.ACID]:2.1,[T.GUNPOWDER]:4.5,[T.SALT]:3,
+  [T.SMOKE]:0.15,[T.OXYGEN]:0.12,[T.WOOD]:4,[T.ASH]:0.8,[T.ACID]:2.1,[T.GUNPOWDER]:4.5,[T.SALT]:3,
 };
 
 function getDens(p){
@@ -1093,6 +1094,11 @@ function stepPlant(x,y,p){
   const smokeNear=nearType(x,y,T.SMOKE);
   p.energy+=((smokeNear?lv*0.4:lv)*3)+0.3;
   p.energy=Math.min(255,p.energy);
+  // Photosynthesis releases oxygen — more light = more oxygen
+  if(lv>0.3&&Math.random()<lv*0.012){
+    const ox=x-gv.x,oy=y-gv.y;
+    if(inB(ox,oy)&&!get(ox,oy)) grid[idx(ox,oy)]={t:T.OXYGEN,age:0,ttl:80+Math.floor(Math.random()*80)};
+  }
   if(p.hp<=0){set(x,y,null);popDecr(p);return;}
   const nbrs=getNeighbors(x,y);
   for(const[nx,ny] of nbrs){
@@ -1101,6 +1107,12 @@ function stepPlant(x,y,p){
     if(np.t===T.SALT)p.energy=Math.max(0,p.energy-1);
     if(np.t===T.ASH)p.energy=Math.min(255,p.energy+0.5);
     if(np.t===T.MITE&&Math.random()<0.12){set(nx,ny,null);popDecr(np);}
+    // Plants choke out spider web — convert adjacent web into plant cells
+    if(np.t===T.WEB&&Math.random()<0.06&&POP[T.PLANT]<POP_MAX[T.PLANT]){
+      const ng=mutateGenome(p.g,mutRate);
+      grid[idx(nx,ny)]=agentWithStrain(T.PLANT,ng,p.sid,{energy:100,growTimer:Math.floor(15+Math.random()*20)});
+      popIncr({t:T.PLANT,sid:p.sid});
+    }
   }
   // Water turbo-charges plant: consumes adjacent water cells, spends them for growth
   const waterNear=nearType(x,y,T.WATER);
@@ -1146,11 +1158,15 @@ function stepPlant(x,y,p){
     for(const[cdx,cdy] of candidates){
       const tx=x+cdx,ty=y+cdy;if(!inB(tx,ty))continue;
       const target=get(tx,ty);
-      // Can grow into: empty, ash, detritus, or seeds (seeds get displaced/replaced)
-      if(target&&target.t!==T.ASH&&target.t!==T.DETRITUS&&target.t!==T.SEED)continue;
+      // Can grow into: empty, ash, detritus, seeds, or web (plants overgrow spider web)
+      if(target&&target.t!==T.ASH&&target.t!==T.DETRITUS&&target.t!==T.SEED&&target.t!==T.WEB)continue;
       const ng=mutateGenome(p.g,mutRate);
       grid[idx(tx,ty)]=agentWithStrain(T.PLANT,ng,p.sid,{energy:120,growTimer:Math.floor(12+Math.random()*18)});
-      popIncr({t:T.PLANT,sid:p.sid});maybeMutateStrain(p,ng);break;
+      popIncr({t:T.PLANT,sid:p.sid});maybeMutateStrain(p,ng);
+      // Growth releases oxygen — emitted upward (against gravity)
+      const ox=x-gv.x,oy=y-gv.y;
+      if(inB(ox,oy)&&!get(ox,oy)) grid[idx(ox,oy)]={t:T.OXYGEN,age:0,ttl:100+Math.floor(Math.random()*60)};
+      break;
     }
   }
 }
@@ -1172,7 +1188,7 @@ function stepAnt(x,y,p){
   p.energy-=0.10+speed*0.10;
   if(p.hp<=0||p.energy<=0){
     if(p.under?.t===T.PLANT){set(x,y,p.under);p.under=null;}
-    else set(x,y,null);
+    else set(x,y,abiotic(T.DETRITUS)); // ants leave detritus on death
     popDecr(p);
     return;
   }
@@ -1186,7 +1202,7 @@ function stepAnt(x,y,p){
     p.hp-=(5*(1-p.g[4]/255*0.5));
     if(p.hp<=0){
       if(p.under?.t===T.PLANT){set(x,y,p.under);p.under=null;}
-      else set(x,y,null);
+      else set(x,y,abiotic(T.DETRITUS)); // drowned ants leave detritus
       popDecr(p);
       return;
     }
@@ -1338,7 +1354,7 @@ function stepAnt(x,y,p){
     const moveCandidates=[],digCandidates=[];
     for(const[nx,ny] of nbrs){
       const np=get(nx,ny);
-      const isOpen=(!np)||np.t===T.PLANT; // ants can walk onto plants (plant preserved as underlay)
+      const isOpen=(!np)||np.t===T.PLANT||np.t===T.DETRITUS; // ants walk through detritus and onto plants
       if(isOpen){
         let wc=0;
         for(const[ax,ay] of getNeighbors(nx,ny)){
@@ -1394,6 +1410,9 @@ function stepAnt(x,y,p){
           } else {
             moveAntTo(mx,my,{consumePlant:false});
           }
+        } else if(dest?.t===T.DETRITUS){
+          grid[idx(mx,my)]=null; // clear detritus — ants walk right through
+          moveAntTo(mx,my);
         } else {
           if(!dest){ moveAntTo(mx,my); }
         }
@@ -1421,7 +1440,7 @@ function stepAnt(x,y,p){
   if(p.energy>160){
     for(const[nx,ny] of axN){
       const np=get(nx,ny);
-      if(np?.t===T.QUEEN&&p.energy>80){np.energy=Math.min(255,np.energy+15);p.energy-=15;break;}
+      if(np?.t===T.QUEEN&&p.energy>80){np.energy=Math.min(255,np.energy+25);p.energy-=20;break;}
     }
   }
 }
@@ -1432,8 +1451,10 @@ function stepAnt(x,y,p){
 function stepQueen(x,y,p){
   p.age++;
   const lv=lightGrid[idx(x,y)];
-  const smokeNear=nearType(x,y,T.SMOKE);
-  p.energy=Math.min(255,p.energy+(smokeNear?lv*0.5:lv*2)+0.5);
+  // Queens get minimal energy from light — they depend on ants bringing food
+  p.energy=Math.min(255,p.energy+lv*0.3+0.1);
+  p.energy-=0.15; // slow drain — starves without ant feeding
+  if(p.energy<=0){p.hp-=2;} // starvation damages hp
   if(p.hp<=0){set(x,y,null);popDecr(p);return;}
   if(envDamage(x,y,p))return;
   const spawnRate=20+Math.floor((1-p.g[5]/255)*80);
@@ -1491,7 +1512,7 @@ function stepSpider(x,y,p){
       const bx2=tx2+ddx,by2=ty2+ddy;const beyond=inB(bx2,by2)?get(bx2,by2):null;
       if(beyond?.t===T.FIRE||beyond?.t===T.LAVA){if(np?.t===T.ANT||np?.t===T.MITE){np.hp-=30;p.energy+=15;}}
     }
-    if(!np||np.t===T.WEB){swap(x,y,nx,ny);}
+    if(!np||np.t===T.WEB||np.t===T.DETRITUS){swap(x,y,nx,ny);}
     else if(np?.t===T.ANT||np?.t===T.MITE||np?.t===T.EGG){
       const dmg=15+Math.floor(aggression*35);np.hp-=dmg;p.energy+=20;
       if(np.hp<=0){
@@ -1522,7 +1543,7 @@ function stepSpider(x,y,p){
       const scored=nbrs.map(([nx,ny])=>{
         const np=get(nx,ny);
         if(!np){const ss=getNeighbors(nx,ny).some(([ax,ay])=>{const ap=get(ax,ay);return ap&&isSpiderSurface(ap.t);})?2:1;return[nx,ny,ss+hazardPenalty(nx,ny,resilience)];}
-        if(np.t===T.WEB)return[nx,ny,3];return null;
+        if(np.t===T.WEB)return[nx,ny,3];if(np.t===T.DETRITUS)return[nx,ny,1];return null;
       }).filter(Boolean);
       scored.sort((a,b)=>b[2]-a[2]);const best=scored[0];
       if(best&&best[2]>0)swap(x,y,best[0],best[1]);
@@ -1655,6 +1676,7 @@ function stepMite(x,y,p){
     }
     if(np?.t===T.SPORE&&Math.random()<0.5){p.energy+=8;set(nx,ny,null);break;}
     if(np?.t===T.ASH&&Math.random()<0.15){p.energy+=4;set(nx,ny,null);break;}
+    if(np?.t===T.DETRITUS&&Math.random()<0.25){p.energy+=12;set(nx,ny,null);break;} // mites scavenge ant corpses
   }
   p.energy=Math.min(255,p.energy);
   if(aggression>0.6&&Math.random()<aggression*0.04){
@@ -1664,13 +1686,13 @@ function stepMite(x,y,p){
   const nearFire=nearType(x,y,T.FIRE,T.LAVA);
   const nearAcid=nearType(x,y,T.ACID);
   if(nearFire||nearAcid){
-    const fleeDir=nbrs.filter(([nx,ny])=>{const np=get(nx,ny);if(np&&np.t!==T.FUNGI)return false;return!nearType(nx,ny,T.FIRE,T.LAVA,T.ACID);});
+    const fleeDir=nbrs.filter(([nx,ny])=>{const np=get(nx,ny);if(np&&np.t!==T.FUNGI&&np.t!==T.DETRITUS)return false;return!nearType(nx,ny,T.FIRE,T.LAVA,T.ACID);});
     if(fleeDir.length){const[mx,my]=fleeDir[Math.floor(Math.random()*fleeDir.length)];swap(x,y,mx,my);[x,y]=[mx,my];}
     return;
   }
   const steps=onIce?3+Math.floor(speed*2):1+Math.floor(speed*1.5);
   for(let s=0;s<steps;s++){
-    const dirs=getNeighbors(x,y).filter(([nx,ny])=>{const np=get(nx,ny);if(np&&np.t!==T.FUNGI)return false;const db=get(nx+gv.x,ny+gv.y);return!(db?.t===T.WATER||db?.t===T.ACID);});
+    const dirs=getNeighbors(x,y).filter(([nx,ny])=>{const np=get(nx,ny);if(np&&np.t!==T.FUNGI&&np.t!==T.DETRITUS)return false;const db=get(nx+gv.x,ny+gv.y);return!(db?.t===T.WATER||db?.t===T.ACID);});
     if(!dirs.length)break;const[mx,my]=dirs[Math.floor(Math.random()*dirs.length)];swap(x,y,mx,my);[x,y]=[mx,my];
   }
   if(p.energy>=220&&POP[T.QUEEN_MITE]<POP_MAX[T.QUEEN_MITE]){
@@ -1901,6 +1923,52 @@ function stepSmoke(x,y,p){
   if(p.ttl<=0){grid[idx(x,y)]=null;return;}
   tryRise(x,y);
   if(Math.random()<0.4){const perp=getPerp();const d=perp[Math.floor(Math.random()*perp.length)];const sx=x+d.x,sy=y+d.y;if(inB(sx,sy)&&!get(sx,sy))swap(x,y,sx,sy);}
+}
+
+// ================================================================
+//  OXYGEN — rises like smoke, flammable at high concentration
+//  Nearby oxygen cells increase local O2 density. When 3+ oxygen
+//  neighbors cluster, any adjacent fire/lava/spark ignites them all.
+// ================================================================
+function stepOxygen(x,y,p){
+  p.ttl=(p.ttl||120)-1;
+  if(p.ttl<=0){grid[idx(x,y)]=null;return;}
+  // Rise against gravity (lighter than air)
+  tryRise(x,y);
+  // Lateral drift
+  if(Math.random()<0.3){
+    const perp=getPerp();const d=perp[Math.floor(Math.random()*perp.length)];
+    const sx=x+d.x,sy=y+d.y;
+    if(inB(sx,sy)&&!get(sx,sy))swap(x,y,sx,sy);
+  }
+  // Re-read position after potential move
+  if(grid[idx(x,y)]!==p)return;
+  // Count nearby oxygen — high concentration = volatile
+  const nbrs=getNeighbors(x,y);
+  let o2Count=0;
+  for(const[nx,ny] of nbrs){const np=get(nx,ny);if(np?.t===T.OXYGEN)o2Count++;}
+  // Flammability: 3+ nearby oxygen = any fire/lava/spark triggers chain ignition
+  if(o2Count>=3){
+    for(const[nx,ny] of nbrs){
+      const np=get(nx,ny);
+      if(np?.t===T.FIRE||np?.t===T.LAVA||np?.t===T.BLOOM_FIRE){
+        // Chain ignite — this oxygen and all adjacent oxygen become fire
+        grid[idx(x,y)]={t:T.FIRE,age:0,ttl:15+Math.floor(Math.random()*20)};
+        for(const[ox,oy] of nbrs){
+          if(get(ox,oy)?.t===T.OXYGEN) grid[idx(ox,oy)]={t:T.FIRE,age:0,ttl:12+Math.floor(Math.random()*15)};
+        }
+        return;
+      }
+    }
+  }
+  // Even at low concentration, direct fire contact burns single oxygen cell
+  for(const[nx,ny] of nbrs){
+    const np=get(nx,ny);
+    if(np?.t===T.FIRE||np?.t===T.LAVA){
+      grid[idx(x,y)]={t:T.FIRE,age:0,ttl:10+Math.floor(Math.random()*10)};
+      return;
+    }
+  }
 }
 
 function stepWood(x,y,p){
@@ -2395,6 +2463,7 @@ function stepParticle(x,y){
   if(p.t===T.STEAM){stepSteam(x,y,p);return;}
   if(p.t===T.ICE){stepIce(x,y,p);return;}
   if(p.t===T.SMOKE){stepSmoke(x,y,p);return;}
+  if(p.t===T.OXYGEN){stepOxygen(x,y,p);return;}
   if(p.t===T.WOOD){stepWood(x,y,p);return;}
   if(p.t===T.ASH){stepAsh(x,y,p);return;}
   if(p.t===T.ACID){stepAcid(x,y,p);return;}
@@ -2406,7 +2475,7 @@ function stepParticle(x,y){
 
   // Passive gravity for abiotic
   if(!p.g&&p.t!==T.WEB&&p.t!==T.FIRE&&p.t!==T.MUTAGEN&&p.t!==T.SPORE&&p.t!==T.FROGSTONE
-      &&p.t!==T.LAVA&&p.t!==T.STEAM&&p.t!==T.ICE&&p.t!==T.SMOKE
+      &&p.t!==T.LAVA&&p.t!==T.STEAM&&p.t!==T.ICE&&p.t!==T.SMOKE&&p.t!==T.OXYGEN
       &&p.t!==T.WOOD&&p.t!==T.ASH&&p.t!==T.ACID&&p.t!==T.GUNPOWDER
       &&p.t!==T.SALT&&p.t!==T.STONE&&p.t!==T.CLOUD&&p.t!==T.BLOOM_CLOUD&&p.t!==T.BLOOM_FIRE
       &&p.t!==T.PROG_CLOUD&&p.t!==T.WEATHER_STATION&&p.t!==T.PROG_VOID){
@@ -2624,6 +2693,7 @@ function getColor(p,x,y){
     case T.STEAM: {const a=(p.ttl||80)/80;r=g=b=180+(a*40)|0;break;}
     case T.ICE:   {const s=Math.random()<0.1;r=s?240:180;g=s?250:220;b=s?255:240;break;}
     case T.SMOKE: {const a=Math.min(1,(p.ttl||60)/60);r=g=b=60+(a*50)|0;break;}
+    case T.OXYGEN: {const a=Math.min(1,(p.ttl||120)/120);const fl=Math.random()<0.15;r=fl?140:80+(a*40)|0;g=fl?220:160+(a*50)|0;b=fl?255:220+(a*30)|0;break;}
     case T.WOOD:  {const v=Math.floor(Math.random()*15);r=100+v;g=65+v;b=30;break;}
     case T.ASH:   {const v=Math.floor(Math.random()*20);r=70+v;g=68+v;b=65+v;break;}
     case T.ACID:  {const fl=Math.random()<0.2;r=fl?255:210;g=fl?220:170;b=fl?0:0;break;} // toxic yellow-orange
