@@ -273,6 +273,7 @@ canvas{display:block;}
     <button class="abtn" style="border-color:var(--accent3);color:var(--accent3);" onclick="randomMap()">🎲 RANDOM WORLD</button>
     <button class="abtn" onclick="seedLife()">🌱 SEED ECOSYSTEM</button>
     <button class="abtn" onclick="openDocs()">? FIELD MANUAL</button>
+    <button class="abtn" style="border-color:var(--accent4);color:var(--accent4);" onclick="openGuide()">📖 ELEMENT GUIDE</button>
     <button class="abtn dang" onclick="resetSim()">↺ RESET</button>
   </div>
 </div>
@@ -400,6 +401,21 @@ canvas{display:block;}
     <tr><td>LIFE SEED ⚛</td><td>Self-replicating mutagen. Drifts, evolves its own recipe genome rapidly, and mutates organisms it touches. Freeze in a FRIDGE container to preserve a specific strain.</td></tr>
   </table>
 
+  <div class="docs-h2">PHARMACY — CRAFTING DRUGS</div>
+  <div class="docs-p">Combine two elements by placing them adjacent to each other. They react <b>instantly</b> (1:1 ratio) to produce a drug. Drugs flow like liquid and apply a temporary buff when they touch any living creature. Each drug evaporates after a few hundred ticks if unused.</div>
+  <table class="docs-table">
+    <tr><th>DRUG</th><th>RECIPE</th><th>EFFECT</th></tr>
+    <tr><td>💊 STIMULANT</td><td>Gold Sand + Fire</td><td>2x movement speed (600 ticks)</td></tr>
+    <tr><td>🌈 CHROMADUST</td><td>Life Seed + Water</td><td>Erratic flea-jumping + rainbow colors (500 ticks)</td></tr>
+    <tr><td>🍯 NECTAR</td><td>Gold Sand + Water</td><td>Heals HP and restores energy (400 ticks)</td></tr>
+    <tr><td>☠ VENOM BREW</td><td>Acid + Spore</td><td>Slow poison — drains HP and energy (300 ticks)</td></tr>
+    <tr><td>👃 PHEROMONE</td><td>Detritus + Oil</td><td>Same-type creatures swarm toward target (400 ticks)</td></tr>
+    <tr><td>🪨 CALCIFIER</td><td>Salt + Stone</td><td>Half damage taken but half speed (500 ticks)</td></tr>
+    <tr><td>💣 SPORE BOMB</td><td>Fungi + Gunpowder</td><td>Creature explodes into spores on death (300 ticks)</td></tr>
+    <tr><td>⬆ GIGANTISM</td><td>Lava + Ice</td><td>Double HP and damage, double energy drain (600 ticks)</td></tr>
+  </table>
+  <div class="docs-tip"><b>Tip:</b> You can also place drugs directly from the PHARMACY section in the element panel. Only one buff can be active at a time — newest overwrites.</div>
+
   <div class="docs-h2">TOOLS</div>
   <table class="docs-table">
     <tr><th>TOOL</th><th>USE</th></tr>
@@ -433,6 +449,108 @@ canvas{display:block;}
   </table>
 
   <div style="margin-top:24px;font-size:7px;color:var(--dim);text-align:center;letter-spacing:2px;border-top:1px solid var(--border);padding-top:12px;">ALIEN ANT FARM · ALIEN ANT FARM · RIGHT-CLICK ANY CELL TO INSPECT · SCROLL TO CHANGE BRUSH SIZE</div>
+</div>
+</div>
+
+<!-- ELEMENT & PHARMACY GUIDE -->
+<div id="guide-overlay" style="display:none;position:fixed;inset:0;z-index:250;background:rgba(0,0,0,0.92);align-items:flex-start;justify-content:center;overflow-y:auto;padding:30px 20px;">
+<div style="background:var(--panel);border:1px solid var(--accent4);width:100%;max-width:800px;padding:24px 28px;position:relative;line-height:1.7;">
+  <button onclick="closeGuide()" style="position:absolute;top:12px;right:14px;background:transparent;border:1px solid var(--border);color:var(--dim);font-family:var(--mono);font-size:9px;padding:4px 10px;cursor:pointer;letter-spacing:2px;">✕ CLOSE</button>
+  <div style="font-family:var(--display);font-size:26px;letter-spacing:3px;color:var(--accent4);margin-bottom:4px;">📖 ELEMENT &amp; PHARMACY GUIDE</div>
+  <div style="font-size:7px;color:var(--dim);letter-spacing:2px;margin-bottom:16px;">COMPLETE INTERACTION REFERENCE</div>
+
+  <!-- ELEMENT INTERACTIONS MATRIX -->
+  <div style="font-family:var(--display);font-size:16px;letter-spacing:2px;color:var(--accent3);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:4px;">ELEMENT INTERACTIONS</div>
+  <div style="font-size:8px;color:var(--text);margin-bottom:10px;">When two elements touch, reactions occur. Key interactions:</div>
+  <table style="width:100%;border-collapse:collapse;font-size:7px;margin-bottom:14px;">
+    <tr><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">A</th><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">+ B</th><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">= RESULT</th></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🔥 Fire</td><td style="padding:3px 6px;">💧 Water</td><td style="padding:3px 6px;">Fire extinguished</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🔥 Fire</td><td style="padding:3px 6px;">🧊 Ice</td><td style="padding:3px 6px;">Ice melts to water, fire dies</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🔥 Fire</td><td style="padding:3px 6px;">🪵 Wood</td><td style="padding:3px 6px;">Wood catches fire (slow)</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🔥 Fire</td><td style="padding:3px 6px;">🛢 Oil</td><td style="padding:3px 6px;">Oil ignites instantly</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🔥 Fire</td><td style="padding:3px 6px;">💥 Gunpowder</td><td style="padding:3px 6px;">Explosion (radius 5)</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🔥 Fire</td><td style="padding:3px 6px;">🫧 Oxygen (3+)</td><td style="padding:3px 6px;">Chain ignition — all nearby O2 combusts</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🌋 Lava</td><td style="padding:3px 6px;">💧 Water</td><td style="padding:3px 6px;">Lava becomes stone, water becomes steam</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🌋 Lava</td><td style="padding:3px 6px;">🧊 Ice</td><td style="padding:3px 6px;">Ice melts to water</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🟢 Acid</td><td style="padding:3px 6px;">Anything</td><td style="padding:3px 6px;">Dissolves target (4% per tick)</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🧂 Salt</td><td style="padding:3px 6px;">💧 Water</td><td style="padding:3px 6px;">Both dissolve</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🧂 Salt</td><td style="padding:3px 6px;">Creatures</td><td style="padding:3px 6px;">Drains energy + HP slowly</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">💥 Bloom Cloud</td><td style="padding:3px 6px;">💧 Water</td><td style="padding:3px 6px;">Launches rising fireballs</td></tr>
+  </table>
+
+  <!-- CREATURE FOOD WEB -->
+  <div style="font-family:var(--display);font-size:16px;letter-spacing:2px;color:var(--accent);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:4px;">CREATURE FOOD WEB</div>
+  <table style="width:100%;border-collapse:collapse;font-size:7px;margin-bottom:14px;">
+    <tr><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">CREATURE</th><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">EATS</th><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">EATEN BY</th><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">TRAVERSES</th></tr>
+    <tr><td style="color:#39ff14;padding:3px 6px;">🐜 Ant</td><td style="padding:3px 6px;">Plants, fungi, mites, detritus</td><td style="padding:3px 6px;">Spiders</td><td style="padding:3px 6px;">Plants (underlay), detritus</td></tr>
+    <tr><td style="color:#cc8844;padding:3px 6px;">🪲 Termite</td><td style="padding:3px 6px;">Wood, plants, fungi, detritus</td><td style="padding:3px 6px;">Spiders</td><td style="padding:3px 6px;">Wood (underlay), detritus</td></tr>
+    <tr><td style="color:#ff8800;padding:3px 6px;">👑 Queen Ant</td><td style="padding:3px 6px;">Fed by worker ants</td><td style="padding:3px 6px;">—</td><td style="padding:3px 6px;">Sessile</td></tr>
+    <tr><td style="color:#ee9944;padding:3px 6px;">🪲👑 Queen Termite</td><td style="padding:3px 6px;">Fed by worker termites</td><td style="padding:3px 6px;">—</td><td style="padding:3px 6px;">Sessile</td></tr>
+    <tr><td style="color:#505058;padding:3px 6px;">🕷 Spider</td><td style="padding:3px 6px;">Ants, termites, mites, eggs</td><td style="padding:3px 6px;">—</td><td style="padding:3px 6px;">Web, wood, detritus</td></tr>
+    <tr><td style="color:#8c32c8;padding:3px 6px;">🍄 Fungi</td><td style="padding:3px 6px;">Detritus, wood (rot)</td><td style="padding:3px 6px;">Mites, ants</td><td style="padding:3px 6px;">Spreads in dark</td></tr>
+    <tr><td style="color:#ff8c00;padding:3px 6px;">🪲 Mite</td><td style="padding:3px 6px;">Fungi, spores, detritus, ash</td><td style="padding:3px 6px;">Spiders, ants</td><td style="padding:3px 6px;">Fungi, detritus</td></tr>
+    <tr><td style="color:#28b43c;padding:3px 6px;">🌿 Plant</td><td style="padding:3px 6px;">Sunlight + water</td><td style="padding:3px 6px;">Ants, fire</td><td style="padding:3px 6px;">Overgrows web</td></tr>
+    <tr><td style="color:#6e4020;padding:3px 6px;">🪵 Wood</td><td style="padding:3px 6px;">Light (grows like tree)</td><td style="padding:3px 6px;">Termites, fire</td><td style="padding:3px 6px;">Branches from roots</td></tr>
+  </table>
+
+  <!-- SPECIAL MECHANICS -->
+  <div style="font-family:var(--display);font-size:16px;letter-spacing:2px;color:#ff4455;margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:4px;">SPECIAL MECHANICS</div>
+  <table style="width:100%;border-collapse:collapse;font-size:7px;margin-bottom:14px;">
+    <tr><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">MECHANIC</th><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">HOW IT WORKS</th></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🫧 Oxygen</td><td style="padding:3px 6px;">Emitted by plants during photosynthesis. Rises like smoke. 3+ oxygen cells near fire = chain explosion.</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">💀 Ant Death</td><td style="padding:3px 6px;">Dead ants become detritus. Feeds mites, creating a death-to-food loop.</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🌿→🕸 Plant vs Web</td><td style="padding:3px 6px;">Plants overgrow spider web (6% per tick), converting it to new plant cells.</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">👑 Queen Dependency</td><td style="padding:3px 6px;">Queens starve without workers feeding them. Both ant and termite queens need worker visits.</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">👑 Queen Spawning</td><td style="padding:3px 6px;">Well-fed ants drop queens after eating plants. Well-fed termites drop queens after eating wood.</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">⭐ Alpha Ants</td><td style="padding:3px 6px;">High-aggression ants near clay can become alpha tunnelers. Dig faster, leave stronger pheromones.</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🪵 Wood Growth</td><td style="padding:3px 6px;">Wood grows like trees — trunk upward, heavy branching sideways. Needs roots in sand/detritus.</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">☁ Cloud</td><td style="padding:3px 6px;">Floats, absorbs moisture, rains water. Lightning strikes when overcharged.</td></tr>
+    <tr><td style="color:var(--accent4);padding:3px 6px;">🐸 Frogstone</td><td style="padding:3px 6px;">Sun-powered dome. Tongue snaps out to eat creatures. Closer sun = longer range.</td></tr>
+  </table>
+
+  <!-- PHARMACY CRAFTING -->
+  <div style="font-family:var(--display);font-size:16px;letter-spacing:2px;color:#ff00ff;margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:4px;">💊 PHARMACY — DRUG CRAFTING</div>
+  <div style="font-size:8px;color:var(--text);margin-bottom:6px;">Place element A adjacent to element B — they react <b style="color:var(--accent)">instantly</b> (1:1 ratio) to produce a drug. Drugs flow like liquid and apply a temporary buff on creature contact.</div>
+  <table style="width:100%;border-collapse:collapse;font-size:7px;margin-bottom:14px;">
+    <tr><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">DRUG</th><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">RECIPE (A + B)</th><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">EFFECT</th><th style="color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">DURATION</th></tr>
+    <tr><td style="color:#ff8c00;padding:3px 6px;">💊 Stimulant</td><td style="padding:3px 6px;">✨ Gold Sand + 🔥 Fire</td><td style="padding:3px 6px;">2x movement speed</td><td style="padding:3px 6px;">600 ticks</td></tr>
+    <tr><td style="color:#ff00ff;padding:3px 6px;">🌈 Chromadust</td><td style="padding:3px 6px;">⚛ Life Seed + 💧 Water</td><td style="padding:3px 6px;">Erratic flea-jumping + rainbow colors</td><td style="padding:3px 6px;">500 ticks</td></tr>
+    <tr><td style="color:#ffcc00;padding:3px 6px;">🍯 Nectar</td><td style="padding:3px 6px;">✨ Gold Sand + 💧 Water</td><td style="padding:3px 6px;">Heals HP, restores energy</td><td style="padding:3px 6px;">400 ticks</td></tr>
+    <tr><td style="color:#44aa44;padding:3px 6px;">☠ Venom Brew</td><td style="padding:3px 6px;">🟢 Acid + 🟣 Spore</td><td style="padding:3px 6px;">Slow poison (HP + energy drain)</td><td style="padding:3px 6px;">300 ticks</td></tr>
+    <tr><td style="color:#cc8820;padding:3px 6px;">👃 Pheromone</td><td style="padding:3px 6px;">🍂 Detritus + 🛢 Oil</td><td style="padding:3px 6px;">Same-type creatures swarm to target</td><td style="padding:3px 6px;">400 ticks</td></tr>
+    <tr><td style="color:#9090a0;padding:3px 6px;">🪨 Calcifier</td><td style="padding:3px 6px;">🧂 Salt + 🪨 Stone</td><td style="padding:3px 6px;">Half damage, half speed (armor)</td><td style="padding:3px 6px;">500 ticks</td></tr>
+    <tr><td style="color:#6600aa;padding:3px 6px;">💣 Spore Bomb</td><td style="padding:3px 6px;">🍄 Fungi + 💥 Gunpowder</td><td style="padding:3px 6px;">Explodes into spores on death</td><td style="padding:3px 6px;">300 ticks</td></tr>
+    <tr><td style="color:#aa3366;padding:3px 6px;">⬆ Gigantism</td><td style="padding:3px 6px;">🌋 Lava + 🧊 Ice</td><td style="padding:3px 6px;">2x HP and damage, 2x energy drain</td><td style="padding:3px 6px;">600 ticks</td></tr>
+  </table>
+  <div style="background:rgba(0,255,136,0.04);border-left:2px solid var(--accent);padding:6px 10px;font-size:8px;color:var(--text);margin-bottom:10px;"><b style="color:var(--accent);">Tip:</b> Only one buff active per creature — newest overwrites. Drugs can also be placed directly from the PHARMACY panel.</div>
+
+  <!-- ELEMENT DENSITY TABLE -->
+  <div style="font-family:var(--display);font-size:16px;letter-spacing:2px;color:var(--text);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:4px;">DENSITY &amp; PHYSICS</div>
+  <div style="font-size:8px;color:var(--text);margin-bottom:6px;">Heavier elements sink through lighter ones. Gravity direction changes with box rotation.</div>
+  <div style="display:flex;flex-wrap:wrap;gap:4px;font-size:7px;margin-bottom:14px;">
+    <span style="padding:2px 6px;border:1px solid var(--border);">🌋 Lava ρ8</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">✨ Gold Sand ρ8</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🪨 Stone ρ7</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🏜 Sand ρ5</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🟫 Clay ρ5</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">💥 Gunpowder ρ4.5</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🪵 Wood ρ4</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🍂 Detritus ρ4</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">⬜ White Sand ρ3</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🧂 Salt ρ3</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🧊 Ice ρ3</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🟢 Acid ρ2</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">💧 Water ρ2</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">💊 Drugs ρ2</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🛢 Oil ρ1</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🩶 Ash ρ0.8</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">💨 Smoke ρ0.15</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🫧 Oxygen ρ0.12</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🌊 Steam ρ0.1</span>
+    <span style="padding:2px 6px;border:1px solid var(--border);">🧱 Wall ρ∞</span>
+  </div>
+
+  <div style="font-size:7px;color:var(--dim);text-align:center;letter-spacing:2px;border-top:1px solid var(--border);padding-top:10px;">ALIEN ANT FARM · ELEMENT &amp; PHARMACY GUIDE</div>
 </div>
 </div>
 
@@ -774,12 +892,15 @@ const T = {
   CLAY:10, CLAY_HARD:11, // clay: falls like sand, hardens when settled — ants tunnel through
   // Kingdom agents — each has a genome
   PLANT:20, ANT:21, QUEEN:22, SPIDER:23, FUNGI:24, MITE:25,
+  TERMITE:34,      // former ant behavior — chews through clay aggressively
   // Derived states
   PLANT_WALL:26, WEB:27, SPORE:28, EGG:29,
+  TUNNEL_WALL:35,  // ant-excavated clay — persistent, never re-dug, marks tunnel edges
   // New reproductive types
   SEED:30,         // plant seed — falls, germinates on surface
   QUEEN_SPIDER:31, // spider queen — sessile, spawns workers
   QUEEN_MITE:32,   // mite queen — sessile, spawns workers
+  QUEEN_TERMITE:36,// termite queen — sessile, spawns worker termites, fed by workers
   FROGSTONE:33,    // large stationary predator — sun-powered tongue, eats nearby creatures
   // Classic sand elements
   LAVA:40, STONE:41, STEAM:42, ICE:43, SMOKE:44,
@@ -793,6 +914,15 @@ const T = {
   WEATHER_STATION:55, // programmable weather controller
   PROG_VOID:56,   // programmable void — destroys any chosen element on contact
   OXYGEN:57,       // released by plants — rises, flammable at high concentration
+  // Pharmacy drugs
+  STIMULANT:60,    // Gold Sand + Fire → 2x speed
+  CHROMADUST:61,   // Mutagen + Water → rainbow jumping
+  NECTAR:62,       // Gold Sand + Water → healing
+  VENOM_BREW:63,   // Acid + Spore → poison
+  PHEROMONE:64,    // Detritus + Oil → swarming
+  CALCIFIER:65,    // Salt + Stone → armor + slow
+  SPORE_BOMB:66,   // Fungi + Gunpowder → explode on death
+  GIGANTISM:67,    // Lava + Ice → double HP/damage
   CUSTOM_BASE:100, // custom lab creatures start at 100+
 };
 
@@ -806,13 +936,51 @@ const DENSITY={
   [T.GOLD_SAND]:8,[T.SAND]:5,[T.CLAY]:5,[T.DETRITUS]:4,
   [T.WHITE_SAND]:3,[T.WATER]:2,[T.MUTAGEN]:2,[T.OIL]:1,
   [T.FIRE]:0.5,[T.SPORE]:1,
-  [T.PLANT]:3,[T.ANT]:3,[T.QUEEN]:5,[T.SPIDER]:3,[T.FUNGI]:2,
+  [T.PLANT]:3,[T.ANT]:3,[T.TERMITE]:3,[T.QUEEN]:5,[T.SPIDER]:3,[T.FUNGI]:2,[T.TUNNEL_WALL]:3,
   [T.MITE]:2,[T.PLANT_WALL]:999,[T.WEB]:1,[T.EGG]:3,
-  [T.SEED]:4,[T.QUEEN_SPIDER]:5,[T.QUEEN_MITE]:5,
+  [T.SEED]:4,[T.QUEEN_SPIDER]:5,[T.QUEEN_MITE]:5,[T.QUEEN_TERMITE]:5,
   // Classic elements
   [T.LAVA]:8,[T.STONE]:7,[T.STEAM]:0.1,[T.ICE]:3,
   [T.SMOKE]:0.15,[T.OXYGEN]:0.12,[T.WOOD]:4,[T.ASH]:0.8,[T.ACID]:2.1,[T.GUNPOWDER]:4.5,[T.SALT]:3,
+  // Pharmacy drugs (liquid-like)
+  [T.STIMULANT]:2,[T.CHROMADUST]:2,[T.NECTAR]:2,[T.VENOM_BREW]:2,
+  [T.PHEROMONE]:2,[T.CALCIFIER]:2.5,[T.SPORE_BOMB]:2,[T.GIGANTISM]:2,
 };
+
+// ================================================================
+//  PHARMACY — crafting recipes (1 A + 1 B → 1 C, 100% on contact)
+// ================================================================
+const RECIPES={};
+function recipeKey(a,b){return a<b?a+'-'+b:b+'-'+a;}
+RECIPES[recipeKey(T.GOLD_SAND,T.FIRE)]    ={product:T.STIMULANT,ttl:400};
+RECIPES[recipeKey(T.MUTAGEN,T.WATER)]     ={product:T.CHROMADUST,ttl:350};
+RECIPES[recipeKey(T.GOLD_SAND,T.WATER)]   ={product:T.NECTAR,ttl:400};
+RECIPES[recipeKey(T.ACID,T.SPORE)]        ={product:T.VENOM_BREW,ttl:300};
+RECIPES[recipeKey(T.DETRITUS,T.OIL)]      ={product:T.PHEROMONE,ttl:350};
+RECIPES[recipeKey(T.SALT,T.STONE)]        ={product:T.CALCIFIER,ttl:400};
+RECIPES[recipeKey(T.FUNGI,T.GUNPOWDER)]   ={product:T.SPORE_BOMB,ttl:300};
+RECIPES[recipeKey(T.LAVA,T.ICE)]          ={product:T.GIGANTISM,ttl:400};
+
+const CRAFT_ELIGIBLE=new Set([
+  T.GOLD_SAND,T.FIRE,T.MUTAGEN,T.WATER,T.ACID,T.SPORE,
+  T.DETRITUS,T.OIL,T.SALT,T.STONE,T.GUNPOWDER,T.LAVA,T.ICE,T.FUNGI
+]);
+
+function tryCraft(x,y,p){
+  if(!CRAFT_ELIGIBLE.has(p.t))return false;
+  for(const[nx,ny] of getNeighbors(x,y)){
+    const np=get(nx,ny);if(!np)continue;
+    const key=recipeKey(p.t,np.t);
+    const recipe=RECIPES[key];
+    if(!recipe)continue;
+    // Consume both, produce drug at this cell
+    if(np.g)popDecr(np); // if consuming a creature (e.g. fungi)
+    grid[idx(nx,ny)]=null;
+    grid[idx(x,y)]={t:recipe.product,age:0,ttl:recipe.ttl};
+    return true;
+  }
+  return false;
+}
 
 function getDens(p){
   if(!p) return 0;
@@ -846,7 +1014,87 @@ const GENOME_DEFAULTS = {
   [T.SPIDER]:  [[80,140],[100,180],[80,160],[160,230],[120,200],[40,100]],
   [T.FUNGI]:   [[40,80], [10,40], [100,180],[20,60], [80,160],[120,200]],
   [T.MITE]:    [[40,80], [160,230],[120,200],[60,120],[60,120],[140,220]],
+  [T.TERMITE]:      [[60,100],[120,200],[100,180],[80,150],[80,140],[100,180]],
+  [T.QUEEN_TERMITE]:[[100,160],[20,60],[80,140],[40,80],[140,220],[180,255]],
+  [T.QUEEN_SPIDER]: [[80,140],[100,180],[80,160],[160,230],[120,200],[40,100]],
+  [T.QUEEN_MITE]:   [[40,80],[160,230],[120,200],[60,120],[60,120],[140,220]],
 };
+
+// ================================================================
+//  SISTER SPECIES — dramatic speciation events
+// ================================================================
+const SPECIATION_CHANCE=0.025; // 2.5% per reproduction
+const VARIANT_INHERIT=0.70;   // 70% offspring inherit variant
+const VARIANT_POOL={
+  [T.ANT]:[
+    {name:'Tunnel-Master',traits:['fast_dig'],hueShift:160,desc:'Digs through clay 3x faster'},
+    {name:'Forager',traits:['fast_eat'],hueShift:80,desc:'Eats plants twice as aggressively'},
+    {name:'Tank Ant',traits:['tank'],hueShift:200,desc:'Double HP but moves slower'},
+    {name:'Acid-Walker',traits:['acid_immune'],hueShift:120,desc:'Immune to acid \u2014 walks through acid pools'},
+    {name:'Aquatic Ant',traits:['aquatic'],hueShift:240,desc:'Can survive in water without drowning'},
+    {name:'Fire-Runner',traits:['fire_immune'],hueShift:280,desc:'Immune to fire and lava damage'},
+    {name:'Jumper Ant',traits:['jumper'],hueShift:60,desc:'Teleports short distances erratically'},
+  ],
+  [T.SPIDER]:[
+    {name:'Ambusher',traits:['ambush'],hueShift:100,desc:'Only strikes when prey is within 2 cells \u2014 instant kill'},
+    {name:'Web-Master',traits:['web_boost'],hueShift:180,desc:'Produces web 3x faster, creating dense networks'},
+    {name:'Venomous',traits:['venom'],hueShift:260,desc:'Single bite kills any creature instantly'},
+    {name:'Acrobat',traits:['fast'],hueShift:70,desc:'Moves 3x faster but has half HP'},
+    {name:'Pack-Hunter',traits:['pack'],hueShift:320,desc:'Doubles damage when another spider is adjacent'},
+  ],
+  [T.TERMITE]:[
+    {name:'Wood-Borer',traits:['fast_eat_wood'],hueShift:90,desc:'Consumes wood 3x faster'},
+    {name:'Mound-Builder',traits:['clay_trail'],hueShift:200,desc:'Leaves clay behind when moving'},
+    {name:'Soldier',traits:['fighter'],hueShift:300,desc:'Double HP, attacks spiders on contact'},
+    {name:'Fungus-Farmer',traits:['fungus_friend'],hueShift:150,desc:'Never eats fungi \u2014 fungi grow near it'},
+  ],
+  [T.MITE]:[
+    {name:'Ice-Skater',traits:['ice_boost'],hueShift:220,desc:'Moves 3x faster on ice surfaces'},
+    {name:'Acid-Mite',traits:['acid_trail'],hueShift:110,desc:'Leaves acid trail as it moves'},
+    {name:'Swarmer',traits:['fast_repro'],hueShift:60,desc:'Reproduces 3x faster but half HP'},
+  ],
+  [T.FUNGI]:[
+    {name:'Bioluminescent',traits:['biolum'],hueShift:180,desc:'Glows in dark, immune to light damage'},
+    {name:'Parasitic',traits:['parasite'],hueShift:300,desc:'Drains HP from adjacent creatures'},
+    {name:'Explosive',traits:['explode'],hueShift:80,desc:'Bursts into spores on death'},
+  ],
+  [T.PLANT]:[
+    {name:'Thorny',traits:['thorns'],hueShift:280,desc:'Damages creatures that eat it'},
+    {name:'Rapid-Growth',traits:['fast_grow'],hueShift:60,desc:'Grows 3x faster, spreads aggressively'},
+    {name:'Deep-Root',traits:['deep_root'],hueShift:180,desc:'Grows downward into sand and clay'},
+  ],
+};
+function trySpeciate(type,parentGenome,parentVariant){
+  // Existing variant: inherit or revert
+  if(parentVariant){return Math.random()<VARIANT_INHERIT?{...parentVariant}:null;}
+  // Check for new speciation
+  if(Math.random()>=SPECIATION_CHANCE)return null;
+  const pool=VARIANT_POOL[type];if(!pool||!pool.length)return null;
+  const template=pool[Math.floor(Math.random()*pool.length)];
+  // Dramatically shift 2-3 genes
+  const ng=[...parentGenome];
+  const geneCount=2+Math.floor(Math.random()*2);
+  const shifted=new Set();
+  for(let i=0;i<geneCount;i++){let g;do{g=Math.floor(Math.random()*6);}while(shifted.has(g));shifted.add(g);
+    ng[g]=Math.min(255,Math.max(0,ng[g]+Math.floor((Math.random()-0.5)*200)));}
+  const hue=(KINGDOM_HUE[type]+template.hueShift)%360;
+  return{name:template.name,traits:[...template.traits],color:{hue,sat:90},desc:template.desc,genome:ng};
+}
+
+// Helper: spawn offspring with speciation check. Returns the new agent.
+function spawnWithSpeciation(type,parentGenome,parentSid,parentVariant,extra={}){
+  const ng=mutateGenome(parentGenome,mutRate);
+  const variant=trySpeciate(type,ng,parentVariant);
+  const finalGenome=variant?.genome||ng;
+  const a=agentWithStrain(type,finalGenome,parentSid,extra);
+  if(variant)a.variant=variant;
+  // HP modifiers for variant traits
+  if(variant?.traits?.includes('tank'))a.hp=Math.min(255,a.hp*2);
+  if(variant?.traits?.includes('fast')||variant?.traits?.includes('swarmer')||variant?.traits?.includes('fast_repro'))a.hp=Math.floor(a.hp*0.5);
+  // Announce NEW speciation (not inherited)
+  if(variant&&!parentVariant)showEventToast('\u{1F9EC} NEW SPECIES',`${variant.name} ${K_NAMES[type]||'creature'} evolved \u2014 ${variant.desc}`);
+  return a;
+}
 
 function randomGenome(type){
   const def=GENOME_DEFAULTS[type]||[[0,255],[0,255],[0,255],[0,255],[0,255],[0,255]];
@@ -857,7 +1105,7 @@ function mutateGenome(g,rate){
   const ng=[...g];
   for(let i=0;i<6;i++){
     if(Math.random()<rate)
-      ng[i]=Math.min(255,Math.max(0,ng[i]+Math.floor((Math.random()-0.5)*40)));
+      ng[i]=Math.min(255,Math.max(0,ng[i]+Math.floor((Math.random()-0.5)*80))); // ±40 magnitude
   }
   return ng;
 }
@@ -865,7 +1113,7 @@ function mutateGenome(g,rate){
 // Strain registry — unique genome strains per kingdom
 const strainRegistry=new Map(); // strainId -> {type,genome,color,pop,born,peak}
 let nextStrain=1;
-let mutRate=0.003;
+let mutRate=0.01; // 1% per gene — more visible evolution
 
 function registerStrain(type,genome,parentId=null){
   const id=nextStrain++;
@@ -876,7 +1124,7 @@ function registerStrain(type,genome,parentId=null){
 }
 
 // Kingdom base hues (for color generation)
-const KINGDOM_HUE={[T.PLANT]:130,[T.ANT]:100,[T.QUEEN]:35,[T.SPIDER]:0,[T.FUNGI]:280,[T.MITE]:40,[T.QUEEN_SPIDER]:285,[T.QUEEN_MITE]:50};
+const KINGDOM_HUE={[T.PLANT]:130,[T.ANT]:100,[T.TERMITE]:25,[T.QUEEN]:35,[T.QUEEN_TERMITE]:30,[T.SPIDER]:0,[T.FUNGI]:280,[T.MITE]:40,[T.QUEEN_SPIDER]:285,[T.QUEEN_MITE]:50};
 
 // ================================================================
 //  WORLD STATE
@@ -889,12 +1137,12 @@ let tickCount=0;
 let imageData,pixels;
 
 // Population counters (fast, updated each tick)
-const POP={[T.PLANT]:0,[T.ANT]:0,[T.QUEEN]:0,[T.SPIDER]:0,[T.FUNGI]:0,[T.MITE]:0,[T.QUEEN_SPIDER]:0,[T.QUEEN_MITE]:0};
-const POP_MAX={[T.PLANT]:800,[T.ANT]:300,[T.QUEEN]:100,[T.SPIDER]:80,[T.FUNGI]:300,[T.MITE]:200,[T.QUEEN_SPIDER]:10,[T.QUEEN_MITE]:10};
+const POP={[T.PLANT]:0,[T.ANT]:0,[T.TERMITE]:0,[T.QUEEN]:0,[T.QUEEN_TERMITE]:0,[T.SPIDER]:0,[T.FUNGI]:0,[T.MITE]:0,[T.QUEEN_SPIDER]:0,[T.QUEEN_MITE]:0};
+const POP_MAX={[T.PLANT]:800,[T.ANT]:300,[T.TERMITE]:200,[T.QUEEN]:100,[T.QUEEN_TERMITE]:20,[T.SPIDER]:80,[T.FUNGI]:300,[T.MITE]:200,[T.QUEEN_SPIDER]:10,[T.QUEEN_MITE]:10};
 
 // Population history — sampled every 100 ticks, max 80 samples kept
 const POP_HISTORY={
-  [T.PLANT]:[],[T.ANT]:[],[T.QUEEN]:[],
+  [T.PLANT]:[],[T.ANT]:[],[T.TERMITE]:[],[T.QUEEN]:[],[T.QUEEN_TERMITE]:[],
   [T.SPIDER]:[],[T.FUNGI]:[],[T.MITE]:[],
   [T.QUEEN_SPIDER]:[],[T.QUEEN_MITE]:[],
 };
@@ -968,12 +1216,12 @@ function hslToRgb(h,s,l){
 
 // Kingdom display colors (stable, not genome-derived for UI)
 const K_COLORS={
-  [T.PLANT]:'#1a6b1a',[T.ANT]:'#39ff14',[T.QUEEN]:'#ff8800',
+  [T.PLANT]:'#1a6b1a',[T.ANT]:'#39ff14',[T.TERMITE]:'#cc8844',[T.QUEEN]:'#ff8800',[T.QUEEN_TERMITE]:'#ee9944',
   [T.SPIDER]:'#505058',[T.FUNGI]:'#8c32c8',[T.MITE]:'#ff8c00',
   [T.QUEEN_SPIDER]:'#cc44ff',[T.QUEEN_MITE]:'#ffdd44',
 };
 const K_NAMES={
-  [T.PLANT]:'PLANT',[T.ANT]:'ANT',[T.QUEEN]:'QUEEN',
+  [T.PLANT]:'PLANT',[T.ANT]:'ANT',[T.TERMITE]:'TERMITE',[T.QUEEN]:'QUEEN',[T.QUEEN_TERMITE]:'Q.TERMITE',
   [T.SPIDER]:'SPIDER',[T.FUNGI]:'FUNGI',[T.MITE]:'MITE',
   [T.QUEEN_SPIDER]:'Q.SPIDER',[T.QUEEN_MITE]:'Q.MITE',
 };
@@ -1059,12 +1307,13 @@ function hazardPenalty(nx,ny,resilience){
 }
 function envDamage(x,y,p){
   const res=p.g[4]/255;let hp=0,en=0;
+  const evt=p.variant?.traits||[];
   for(const[nx,ny] of getNeighbors(x,y)){
     const np=get(nx,ny);if(!np)continue;
     switch(np.t){
-      case T.FIRE:hp-=Math.max(2,15*(1-res*0.7));break;
-      case T.LAVA:hp-=Math.max(4,25*(1-res*0.6));break;
-      case T.ACID:hp-=Math.max(3,20*(1-res*0.5));en-=5;break;
+      case T.FIRE:if(!evt.includes('fire_immune'))hp-=Math.max(2,15*(1-res*0.7));break;
+      case T.LAVA:if(!evt.includes('fire_immune'))hp-=Math.max(4,25*(1-res*0.6));break;
+      case T.ACID:if(!evt.includes('acid_immune')){hp-=Math.max(3,20*(1-res*0.5));en-=5;}break;
       case T.SALT:hp-=Math.max(1,4*(1-res*0.4));en-=3;break;
       case T.SMOKE:en-=0.5;break;
       case T.ICE:en-=1;break;
@@ -1086,10 +1335,32 @@ function envDamage(x,y,p){
 }
 
 // ================================================================
+//  BUFF SYSTEM — temporary drug effects on creatures
+// ================================================================
+function applyBuff(p,type,ttl){
+  if(type==='gigantism'&&p.buff?.type!=='gigantism') p.hp=Math.min(255,p.hp*2);
+  p.buff={type,ttl};
+}
+function processBuff(p){
+  if(!p.buff)return;
+  p.buff.ttl--;
+  if(p.buff.ttl<=0){
+    if(p.buff.type==='gigantism')p.hp=Math.min(100,p.hp);
+    p.buff=null;return;
+  }
+  switch(p.buff.type){
+    case 'nectar':p.hp=Math.min(255,p.hp+0.5);p.energy=Math.min(255,p.energy+0.3);break;
+    case 'venom':p.hp-=0.5;p.energy-=0.3;break;
+    case 'gigantism':p.energy-=0.15;break;
+  }
+}
+
+// ================================================================
 //  PLANT
 // ================================================================
 function stepPlant(x,y,p){
   p.age++;
+  processBuff(p);
   const lv=lightGrid[idx(x,y)];
   const smokeNear=nearType(x,y,T.SMOKE);
   p.energy+=((smokeNear?lv*0.4:lv)*3)+0.3;
@@ -1180,210 +1451,240 @@ function stepPlant(x,y,p){
 // and leave pheromone trails. Non-alpha ants score pheromone in movement candidates.
 function stepAnt(x,y,p){
   p.age++;
+  processBuff(p);
+  // Chromadust: erratic jumping
+  if(p.buff?.type==='chromadust'&&Math.random()<0.3){const jx=x+Math.floor((Math.random()-0.5)*6),jy=y+Math.floor((Math.random()-0.5)*6);if(inB(jx,jy)&&!get(jx,jy)){swap(x,y,jx,jy);return;}}
+  // Spore bomb: explode on death
+  if((p.hp<=0||p.energy<=0)&&p.buff?.type==='sporebomb'){for(let i=0;i<6+Math.floor(Math.random()*3);i++){const sx2=x+Math.floor((Math.random()-0.5)*6),sy2=y+Math.floor((Math.random()-0.5)*6);if(inB(sx2,sy2)&&!get(sx2,sy2))grid[idx(sx2,sy2)]={t:T.SPORE,age:0,g:p.g,sid:p.sid||0,energy:60};}}
   const speed=p.g[1]/255,appetite=p.g[2]/255,aggression=p.g[3]/255;
-  // Plant traversal tuning: ants should usually climb across plants instead of eating corridors through them.
-  // Target: ~90% "walk" vs ~10% "eat" when stepping onto a plant cell.
-  // (Kept mostly constant so behavior is predictable across genomes.)
-  const plantConsumeChance=0.10;
-  p.energy-=0.10+speed*0.10;
+  const vt=p.variant?.traits||[];
+  const plantConsumeChance=vt.includes('fast_eat')?0.25:0.10;
+  p.energy-=vt.includes('tank')?0.06:(0.10+speed*0.10);
   if(p.hp<=0||p.energy<=0){
     if(p.under?.t===T.PLANT){set(x,y,p.under);p.under=null;}
-    else set(x,y,abiotic(T.DETRITUS)); // ants leave detritus on death
+    else set(x,y,abiotic(T.DETRITUS));
     popDecr(p);
     return;
   }
   if(envDamage(x,y,p))return;
-  if(p.qcd===undefined) p.qcd=0; // queen-drop cooldown (ticks)
+  if(p.qcd===undefined) p.qcd=0;
   if(p.qcd>0) p.qcd--;
   const gx2=gv.x,gy2=gv.y,bx=x+gx2,by=y+gy2;
   const belowCell=inB(bx,by)?grid[idx(bx,by)]:null;
-  // Drown in water
-  if(belowCell?.t===T.WATER){
+  if(belowCell?.t===T.WATER&&!vt.includes('aquatic')){
     p.hp-=(5*(1-p.g[4]/255*0.5));
     if(p.hp<=0){
       if(p.under?.t===T.PLANT){set(x,y,p.under);p.under=null;}
-      else set(x,y,abiotic(T.DETRITUS)); // drowned ants leave detritus
+      else set(x,y,abiotic(T.DETRITUS));
       popDecr(p);
       return;
     }
   }
   const touchingSolid=getNeighbors(x,y).some(([nx,ny])=>{const np=grid[idx(nx,ny)];return np&&isSolid(np.t);});
   const nbrs=getNeighbors(x,y);
-  p.cellX=x;p.cellY=y; // updated again if ant moves (for end-of-tick helpers)
+  p.cellX=x;p.cellY=y;
 
-  function isPlantLikeCell(cell){
-    // Plants can exist "under" ants that are climbing.
-    return cell?.t===T.PLANT || (cell?.t===T.ANT && cell.under?.t===T.PLANT);
-  }
-  function isPlantLikeAt(cx,cy){
-    return isPlantLikeCell(get(cx,cy));
-  }
-  function plantNeighborCount(cx,cy){
-    let n=0;
-    for(const[nx,ny] of getNeighbors(cx,cy)) if(isPlantLikeAt(nx,ny)) n++;
-    return n;
-  }
-  function isPlantInterior(cx,cy){
-    // Interior = mostly surrounded by plants (diagonals included via getNeighbors).
-    // This makes ants nibble inside dense clusters, but climb around sparse edges.
-    return plantNeighborCount(cx,cy)>=6;
-  }
-  function isPlantEdgeCell(cx,cy){
-    // Edge = has at least one non-plant neighbor.
-    return plantNeighborCount(cx,cy)<=5;
-  }
+  function isPlantLikeCell(cell){return cell?.t===T.PLANT||(cell?.t===T.ANT&&cell.under?.t===T.PLANT);}
+  function isPlantLikeAt(cx,cy){return isPlantLikeCell(get(cx,cy));}
+  function plantNeighborCount(cx,cy){let n=0;for(const[nx,ny] of getNeighbors(cx,cy))if(isPlantLikeAt(nx,ny))n++;return n;}
+  function isPlantInterior(cx,cy){return plantNeighborCount(cx,cy)>=6;}
+  function isPlantEdgeCell(cx,cy){return plantNeighborCount(cx,cy)<=5;}
 
   function moveAntTo(nx,ny,{consumePlant=false}={}){
-    // Restore whatever was under the ant at the origin (usually a plant), then move.
     const originI=idx(x,y),destI=idx(nx,ny);
     const dest=grid[destI];
     grid[originI]=(p.under?.t===T.PLANT)?p.under:null;
     p.under=null;
-    if(dest?.t===T.PLANT){
-      if(consumePlant){
-        popDecr(dest);
-      } else {
-        p.under=dest; // carry plant as underlay while the ant occupies this cell
-      }
-    }
+    if(dest?.t===T.PLANT){if(consumePlant){popDecr(dest);}else{p.under=dest;}}
     grid[destI]=p;
     p.cellX=nx;p.cellY=ny;
   }
 
-  if(!touchingSolid&&!belowCell){
-    if(inB(bx,by)){
-      // Falling through air: treat as normal movement (keep any underlay restored behind).
-      if(!get(bx,by)){ moveAntTo(bx,by); return; }
-    }
-  }
+  if(!touchingSolid&&!belowCell){if(inB(bx,by)){if(!get(bx,by)){moveAntTo(bx,by);return;}}}
 
   function tryDropQueenFromPlantEat(atX,atY){
-    // Only called right after a successful plant meal (+40 already applied, ant at atX,atY).
-    if(p.qcd>0) return false;
-    if(POP[T.QUEEN]>=POP_MAX[T.QUEEN]) return false;
-    // Enough reserves to “fund” a queen; kept low so it actually fires in play.
-    if(p.energy<115) return false;
-
+    if(p.qcd>0)return false;
+    if(POP[T.QUEEN]>=POP_MAX[T.QUEEN])return false;
+    if(p.energy<115)return false;
     const ng=mutateGenome(p.g,mutRate);
     const localNbrs=getNeighbors(atX,atY);
-    const spawnCells=localNbrs.filter(([nx,ny])=>{
-      const t=get(nx,ny);
-      return (!t) || t.t===T.PLANT;
-    });
-
+    const spawnCells=localNbrs.filter(([nx,ny])=>{const t=get(nx,ny);return(!t)||t.t===T.PLANT;});
     if(spawnCells.length){
       const[qx,qy]=spawnCells[Math.floor(Math.random()*spawnCells.length)];
-      const prev=get(qx,qy);
-      if(prev?.t===T.PLANT) popDecr(prev);
+      const prev=get(qx,qy);if(prev?.t===T.PLANT)popDecr(prev);
       grid[idx(qx,qy)]=agentWithStrain(T.QUEEN,ng,p.sid,{energy:200});
-      popIncr({t:T.QUEEN,sid:p.sid});
-      p.energy=Math.max(0,p.energy-75);
-      p.qcd=60;
-      return true;
+      popIncr({t:T.QUEEN,sid:p.sid});p.energy=Math.max(0,p.energy-75);p.qcd=60;return true;
     }
-
-    // No empty/plant neighbor: this ant becomes the queen (same grid cell).
     const cell=grid[idx(atX,atY)];
-    if(cell===p){
-      if(p.under?.t===T.PLANT){ popDecr(p.under); p.under=null; }
-      grid[idx(atX,atY)]=agentWithStrain(T.QUEEN,ng,p.sid,{energy:200});
-      popDecr(p);
-      popIncr({t:T.QUEEN,sid:p.sid});
-      p.qcd=60;
-      return true;
-    }
+    if(cell===p){if(p.under?.t===T.PLANT){popDecr(p.under);p.under=null;}
+      grid[idx(atX,atY)]=agentWithStrain(T.QUEEN,ng,p.sid,{energy:200});popDecr(p);popIncr({t:T.QUEEN,sid:p.sid});p.qcd=60;return true;}
     return false;
   }
 
   // EATING
   for(const[nx,ny] of nbrs){
     const np=get(nx,ny);if(!np)continue;
-    // Plants are handled primarily via movement (stepping onto plant), not "side-biting",
-    // so ants don't tunnel straight through plant clusters.
-    if(np.t===T.FUNGI&&Math.random()<appetite*0.25){
-      p.energy+=30;
-      popDecr(np);
-      grid[idx(nx,ny)]=null;
-      break;
-    }
+    if(np.t===T.FUNGI&&Math.random()<appetite*0.25){p.energy+=30;popDecr(np);grid[idx(nx,ny)]=null;break;}
     if(np.t===T.MITE&&Math.random()<appetite*0.5){p.energy+=15;grid[idx(nx,ny)]=null;break;}
     if((np.t===T.DETRITUS||np.t===T.ASH)&&Math.random()<appetite*0.15){p.energy+=8;grid[idx(nx,ny)]=null;break;}
   }
   p.energy=Math.min(255,p.energy);
 
-  // OFFENSE: high-aggression ants throw salt/ash at spiders
+  // OFFENSE
   if(aggression>0.85&&Math.random()<aggression*0.015){
-    for(const[nx,ny] of nbrs){
-      const np=get(nx,ny);
-      if(np?.t===T.SPIDER||np?.t===T.QUEEN_SPIDER){
-        for(const[sx,sy] of nbrs){const sp=get(sx,sy);if(sp?.t===T.SALT||sp?.t===T.ASH||sp?.t===T.GUNPOWDER){np.hp-=sp.t===T.GUNPOWDER?50:12;grid[idx(sx,sy)]=null;break;}}
-        break;
-      }
+    for(const[nx,ny] of nbrs){const np=get(nx,ny);
+      if(np?.t===T.SPIDER||np?.t===T.QUEEN_SPIDER){for(const[sx,sy] of nbrs){const sp=get(sx,sy);if(sp?.t===T.SALT||sp?.t===T.ASH||sp?.t===T.GUNPOWDER){np.hp-=sp.t===T.GUNPOWDER?50:12;grid[idx(sx,sy)]=null;break;}}break;}
     }
   }
 
   // ALPHA PROMOTION
   if(!p.alpha&&aggression>0.9&&p.energy>220){
     const nearClay=nbrs.some(([nx,ny])=>get(nx,ny)?.t===T.CLAY_HARD);
-    if(nearClay){
-      let alphaFound=false;
-      for(let dy=-15;dy<=15&&!alphaFound;dy++)for(let dx=-15;dx<=15&&!alphaFound;dx++){
-        const tp=get(x+dx,y+dy);if(tp?.t===T.ANT&&tp.alpha)alphaFound=true;
-      }
-      if(!alphaFound&&Math.random()<0.04)p.alpha=true;
-    }
+    if(nearClay){let alphaFound=false;for(let dy=-15;dy<=15&&!alphaFound;dy++)for(let dx=-15;dx<=15&&!alphaFound;dx++){const tp=get(x+dx,y+dy);if(tp?.t===T.ANT&&tp.alpha)alphaFound=true;}
+      if(!alphaFound&&Math.random()<0.04)p.alpha=true;}
   }
-  // Alpha loses status if energy drops low
   if(p.alpha&&p.energy<80)p.alpha=false;
 
-  // PHEROMONE DEPOSIT — ants leave trail whenever adjacent to clay walls (inside tunnels)
-  {
-    let wallCount=0;
-    for(const[nx,ny] of nbrs){const ap=get(nx,ny);if(ap&&(isWall(ap.t)||ap.t===T.CLAY_HARD))wallCount++;}
-    if(p.alpha){
-      pheroGrid[idx(x,y)]=Math.min(1,pheroGrid[idx(x,y)]+0.35);
-      p.energy-=0.05;
-    } else if(wallCount>=2){
-      pheroGrid[idx(x,y)]=Math.min(1,pheroGrid[idx(x,y)]+0.12);
-    }
-  }
+  // PHEROMONE DEPOSIT
+  {let wallCount=0;for(const[nx,ny] of nbrs){const ap=get(nx,ny);if(ap&&(isWall(ap.t)||ap.t===T.CLAY_HARD))wallCount++;}
+    if(p.alpha){pheroGrid[idx(x,y)]=Math.min(1,pheroGrid[idx(x,y)]+0.35);p.energy-=0.05;}
+    else if(wallCount>=2){pheroGrid[idx(x,y)]=Math.min(1,pheroGrid[idx(x,y)]+0.12);}}
 
-  // MOVEMENT — heavy tunnel preference + pheromone following; dig only when truly stuck
-  // (Queen feeding runs after movement so it doesn’t drain energy before plant-eat → queen lay.)
+  // MOVEMENT
   if(Math.random()<0.55+speed*0.35){
     const moveCandidates=[],digCandidates=[];
     for(const[nx,ny] of nbrs){
       const np=get(nx,ny);
-      const isOpen=(!np)||np.t===T.PLANT||np.t===T.DETRITUS; // ants walk through detritus and onto plants
+      const isOpen=(!np)||np.t===T.PLANT||np.t===T.DETRITUS;
       if(isOpen){
-        let wc=0;
-        for(const[ax,ay] of getNeighbors(nx,ny)){
-          if(ax===x&&ay===y)continue;
-          const ap=get(ax,ay);
-          if(ap&&(isWall(ap.t)||ap.t===T.CLAY_HARD))wc++;
-        }
+        let wc=0;for(const[ax,ay] of getNeighbors(nx,ny)){if(ax===x&&ay===y)continue;const ap=get(ax,ay);if(ap&&(isWall(ap.t)||ap.t===T.CLAY_HARD))wc++;}
         let score=wc>=3?20:wc>=1?8:1;
-        if(np?.t===T.PLANT){
-          // Prefer climbing plant edges, especially upward (against gravity).
-          score+=10;
-          const ddx=nx-x,ddy=ny-y;
-          const isUp=(ddx===-gx2&&ddy===-gy2);
-          if(isPlantEdgeCell(nx,ny)) score+=isUp?26:14;
-          else score+=isUp?10:2; // interior still ok, but less attractive than edges
-        }
+        if(np?.t===T.PLANT){score+=10;const ddx=nx-x,ddy=ny-y;const isUp=(ddx===-gx2&&ddy===-gy2);if(isPlantEdgeCell(nx,ny))score+=isUp?26:14;else score+=isUp?10:2;}
         const phero=pheroGrid[idx(nx,ny)];
-        if(!p.alpha){
-          if(phero>0.05) score+=Math.floor(phero*30);
-        } else {
-          if(phero<0.15) score+=3;
-        }
+        if(!p.alpha){if(phero>0.05)score+=Math.floor(phero*30);}else{if(phero<0.15)score+=3;}
         score+=hazardPenalty(nx,ny,p.g[4]/255);
         const db=get(nx+gx2,ny+gy2);if(db?.t===T.WATER||db?.t===T.LAVA||db?.t===T.ACID)score-=5;
         moveCandidates.push([nx,ny,score]);
       } else if(np.t===T.CLAY_HARD&&!np.reinforced){
-        const ddx=nx-x,ddy=ny-y;
-        const isDown=(ddx===gx2&&ddy===gy2),isUp=(ddx===-gx2&&ddy===-gy2);
+        const ddx=nx-x,ddy=ny-y;const isDown=(ddx===gx2&&ddy===gy2),isUp=(ddx===-gx2&&ddy===-gy2);
         const weight=p.alpha?(isDown?1:isUp?8:5):(isDown?1:isUp?4:2);
+        digCandidates.push([nx,ny,weight]);
+      }
+    }
+    if(moveCandidates.length){
+      moveCandidates.sort((a,b)=>b[2]-a[2]);const best=moveCandidates[0][2];
+      const bestCells=moveCandidates.filter(c=>c[2]===best);
+      const[mx,my]=bestCells[Math.floor(Math.random()*bestCells.length)];
+      const trulySurrounded=best<=1&&moveCandidates.every(c=>c[2]<=1);
+      if(trulySurrounded&&digCandidates.length){/*fall through*/}
+      else{
+        const dest=get(mx,my);
+        if(dest?.t===T.PLANT){const interior=isPlantInterior(mx,my);const edgeNibbleChance=0.02;const eatChance=interior?plantConsumeChance:edgeNibbleChance;
+          if(Math.random()<eatChance){p.energy+=40;moveAntTo(mx,my,{consumePlant:true});tryDropQueenFromPlantEat(mx,my);}else{moveAntTo(mx,my,{consumePlant:false});}}
+        else if(dest?.t===T.DETRITUS){grid[idx(mx,my)]=null;moveAntTo(mx,my);}
+        else{if(!dest){moveAntTo(mx,my);}}
+        return;
+      }
+    }
+    if(!moveCandidates.length||(moveCandidates[0][2]<=1&&moveCandidates.every(c=>c[2]<=1)&&digCandidates.length)){
+      if(digCandidates.length){const total=digCandidates.reduce((s,c)=>s+c[2],0);let r2=Math.random()*total;
+        let chosen=digCandidates[digCandidates.length-1];for(const c of digCandidates){r2-=c[2];if(r2<=0){chosen=c;break;}}
+        const digChance=(p.alpha?0.50:0.18)*(vt.includes('fast_dig')?3:1);
+        if(Math.random()<digChance){grid[idx(chosen[0],chosen[1])]=null;pheroGrid[idx(chosen[0],chosen[1])]=p.alpha?1.0:0.6;pheroGrid[idx(x,y)]=Math.min(1,pheroGrid[idx(x,y)]+0.4);}
+      }
+    }
+  }
+
+  // JUMPER trait: occasional teleport 3-5 cells away
+  if(vt.includes('jumper')&&Math.random()<0.08){
+    const jdist=3+Math.floor(Math.random()*3);
+    const jangle=Math.random()*Math.PI*2;
+    const jx=x+Math.round(Math.cos(jangle)*jdist),jy=y+Math.round(Math.sin(jangle)*jdist);
+    if(jx>=0&&jx<W&&jy>=0&&jy<H&&!grid[idx(jx,jy)]){
+      const originI=idx(x,y);grid[originI]=(p.under?.t===T.PLANT)?p.under:null;p.under=null;grid[idx(jx,jy)]=p;p.cellX=jx;p.cellY=jy;
+    }
+  }
+
+  // Workers tithe to adjacent queen
+  const axN=getNeighbors(p.cellX,p.cellY);
+  if(p.energy>160){for(const[nx,ny] of axN){const np=get(nx,ny);if(np?.t===T.QUEEN&&p.energy>80){np.energy=Math.min(255,np.energy+25);p.energy-=20;break;}}}
+}
+
+// ================================================================
+//  TERMITE — aggressive chewer (former ant behavior)
+//  Chews through clay destructively. No tunnel architecture.
+// ================================================================
+function stepTermite(x,y,p){
+  p.age++;
+  processBuff(p);
+  if(p.buff?.type==='chromadust'&&Math.random()<0.3){const jx=x+Math.floor((Math.random()-0.5)*6),jy=y+Math.floor((Math.random()-0.5)*6);if(inB(jx,jy)&&!get(jx,jy)){swap(x,y,jx,jy);return;}}
+  const tvt=p.variant?.traits||[];
+  const speed=p.g[1]/255,appetite=p.g[2]/255,aggression=p.g[3]/255;
+  const woodConsumeChance=tvt.includes('fast_eat_wood')?0.36:0.12; // mostly traverse wood, sometimes eat it
+  p.energy-=0.10+speed*0.10;
+  if(p.hp<=0||p.energy<=0){
+    if(p.under?.t===T.WOOD){set(x,y,p.under);p.under=null;}
+    else set(x,y,abiotic(T.DETRITUS));
+    popDecr(p);return;
+  }
+  if(envDamage(x,y,p))return;
+  const gx2=gv.x,gy2=gv.y,bx=x+gx2,by=y+gy2;
+  const belowCell=inB(bx,by)?grid[idx(bx,by)]:null;
+  if(belowCell?.t===T.WATER){p.hp-=(5*(1-p.g[4]/255*0.5));if(p.hp<=0){
+    if(p.under?.t===T.WOOD){set(x,y,p.under);p.under=null;}else set(x,y,abiotic(T.DETRITUS));popDecr(p);return;}}
+  const touchingSolid=getNeighbors(x,y).some(([nx,ny])=>{const np=grid[idx(nx,ny)];return np&&(isSolid(np.t)||np.t===T.WOOD);});
+  const nbrs=getNeighbors(x,y);
+  p.cellX=x;p.cellY=y;
+
+  // Movement helper — like ant's moveAntTo but for wood underlay
+  function moveTermiteTo(nx,ny,{consumeWood=false}={}){
+    const originI=idx(x,y),destI=idx(nx,ny);
+    const dest=grid[destI];
+    grid[originI]=(p.under?.t===T.WOOD)?p.under:null;
+    p.under=null;
+    if(dest?.t===T.WOOD){if(consumeWood){/* wood consumed, becomes nothing */}else{p.under=dest;}}
+    grid[destI]=p;p.cellX=nx;p.cellY=ny;
+  }
+
+  // Gravity
+  if(!touchingSolid&&!belowCell){if(inB(bx,by)){if(!get(bx,by)){moveTermiteTo(bx,by);return;}}}
+
+  // EATING — termites eat plants, fungi, detritus; wood handled via movement
+  for(const[nx,ny] of nbrs){
+    const np=get(nx,ny);if(!np)continue;
+    if((np.t===T.PLANT||np.t===T.PLANT_WALL)&&Math.random()<appetite*0.3){p.energy+=40;if(np.t===T.PLANT)popDecr(np);grid[idx(nx,ny)]=null;break;}
+    if(np.t===T.FUNGI&&!tvt.includes('fungus_friend')&&Math.random()<appetite*0.25){p.energy+=30;popDecr(np);grid[idx(nx,ny)]=null;break;}
+    if(np.t===T.MITE&&Math.random()<appetite*0.5){p.energy+=15;grid[idx(nx,ny)]=null;break;}
+    if((np.t===T.DETRITUS||np.t===T.ASH)&&Math.random()<appetite*0.15){p.energy+=8;grid[idx(nx,ny)]=null;break;}
+  }
+  p.energy=Math.min(255,p.energy);
+
+  // fighter trait: termites attack adjacent spiders
+  if(tvt.includes('fighter')&&Math.random()<0.08){
+    for(const[nx,ny] of nbrs){const np=get(nx,ny);if(np?.t===T.SPIDER||np?.t===T.QUEEN_SPIDER){np.hp-=12;p.energy+=5;if(np.hp<=0){grid[idx(nx,ny)]=null;popDecr(np);}break;}}
+  }
+
+  // Pheromone — inside wood structures or near walls
+  {let wc=0;for(const[nx,ny] of nbrs){const ap=get(nx,ny);if(ap&&(isWall(ap.t)||ap.t===T.CLAY_HARD||ap.t===T.WOOD))wc++;}
+    if(wc>=2)pheroGrid[idx(x,y)]=Math.min(1,pheroGrid[idx(x,y)]+0.12);}
+
+  // MOVEMENT — traverse wood like ants traverse plants
+  if(Math.random()<0.55+speed*0.35){
+    const moveCandidates=[],digCandidates=[];
+    for(const[nx,ny] of nbrs){
+      const np=get(nx,ny);
+      const isOpen=(!np)||np.t===T.WOOD||np.t===T.DETRITUS;
+      if(isOpen){
+        let score=1;let wc=0;
+        for(const[ax,ay] of getNeighbors(nx,ny)){if(ax===x&&ay===y)continue;const ap=get(ax,ay);if(ap&&(isWall(ap.t)||ap.t===T.CLAY_HARD||ap.t===T.WOOD))wc++;}
+        if(wc>=3)score+=15;else if(wc>=1)score+=5;
+        if(np?.t===T.WOOD)score+=12; // prefer traversing wood
+        const phero=pheroGrid[idx(nx,ny)];if(phero>0.05)score+=Math.floor(phero*20);
+        score+=hazardPenalty(nx,ny,p.g[4]/255);
+        moveCandidates.push([nx,ny,score]);
+      } else if(np.t===T.CLAY_HARD&&!np.reinforced){
+        const ddx=nx-x,ddy=ny-y;
+        const weight=(ddx===gx2&&ddy===gy2)?3:5;
         digCandidates.push([nx,ny,weight]);
       }
     }
@@ -1392,55 +1693,74 @@ function stepAnt(x,y,p){
       const best=moveCandidates[0][2];
       const bestCells=moveCandidates.filter(c=>c[2]===best);
       const[mx,my]=bestCells[Math.floor(Math.random()*bestCells.length)];
-      const trulySurrounded=best<=1&&moveCandidates.every(c=>c[2]<=1);
-      if(trulySurrounded&&digCandidates.length){
-        // fall through to dig
-      } else {
+      if(best<=1&&digCandidates.length){/*fall through*/}
+      else{
         const dest=get(mx,my);
-        if(dest?.t===T.PLANT){
-          // When stepping onto a plant, either eat it or climb on top of it (plant preserved underlay).
-          const interior=isPlantInterior(mx,my);
-          // Mostly climb on edges, but allow a small nibble chance everywhere.
-          const edgeNibbleChance=0.02;
-          const eatChance=interior?plantConsumeChance:edgeNibbleChance;
-          if(Math.random()<eatChance){
-            p.energy+=40;
-            moveAntTo(mx,my,{consumePlant:true});
-            tryDropQueenFromPlantEat(mx,my);
-          } else {
-            moveAntTo(mx,my,{consumePlant:false});
-          }
-        } else if(dest?.t===T.DETRITUS){
-          grid[idx(mx,my)]=null; // clear detritus — ants walk right through
-          moveAntTo(mx,my);
+        if(dest?.t===T.WOOD){
+          // Traverse or consume wood (like ant + plant)
+          if(Math.random()<woodConsumeChance){
+            p.energy+=20;moveTermiteTo(mx,my,{consumeWood:true});
+            // Wood meal — chance to drop a queen (like ants after eating plants)
+            if(p.energy>=160&&Math.random()<0.05&&POP[T.QUEEN_TERMITE]<POP_MAX[T.QUEEN_TERMITE]){
+              let qNear2=false;for(let dy2=-20;dy2<=20&&!qNear2;dy2++)for(let dx2=-20;dx2<=20&&!qNear2;dx2++){if(get(mx+dx2,my+dy2)?.t===T.QUEEN_TERMITE)qNear2=true;}
+              if(!qNear2){const qSpot=getNeighbors(mx,my).filter(([qx,qy])=>!get(qx,qy));
+                if(qSpot.length){const[qx,qy]=qSpot[Math.floor(Math.random()*qSpot.length)];const ng=mutateGenome(p.g,mutRate);
+                  grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_TERMITE,ng,p.sid,{energy:180});popIncr({t:T.QUEEN_TERMITE,sid:p.sid});p.energy-=80;}}
+            }
+          } else{moveTermiteTo(mx,my,{consumeWood:false});}
         } else {
-          if(!dest){ moveAntTo(mx,my); }
+          if(dest?.t===T.DETRITUS)grid[idx(mx,my)]=null;
+          moveTermiteTo(mx,my);
         }
+        // clay_trail: leave clay behind after moving
+        if(tvt.includes('clay_trail')&&Math.random()<0.12&&!grid[idx(x,y)]){grid[idx(x,y)]={t:T.CLAY,age:0};}
         return;
       }
     }
-    if(!moveCandidates.length||(moveCandidates[0][2]<=1&&moveCandidates.every(c=>c[2]<=1)&&digCandidates.length)){
-      if(digCandidates.length){
-        const total=digCandidates.reduce((s,c)=>s+c[2],0);
-        let r2=Math.random()*total;
-        let chosen=digCandidates[digCandidates.length-1];
-        for(const c of digCandidates){r2-=c[2];if(r2<=0){chosen=c;break;}}
-        const digChance=p.alpha?0.50:0.18;
-        if(Math.random()<digChance){
-          grid[idx(chosen[0],chosen[1])]=null;
-          pheroGrid[idx(chosen[0],chosen[1])]=p.alpha?1.0:0.6;
-          pheroGrid[idx(x,y)]=Math.min(1,pheroGrid[idx(x,y)]+0.4);
-        }
-      }
+    if(digCandidates.length&&Math.random()<0.3){
+      const total=digCandidates.reduce((s,c)=>s+c[2],0);let r2=Math.random()*total;
+      let chosen=digCandidates[digCandidates.length-1];
+      for(const c of digCandidates){r2-=c[2];if(r2<=0){chosen=c;break;}}
+      grid[idx(chosen[0],chosen[1])]=null;
+      pheroGrid[idx(chosen[0],chosen[1])]=0.5;
     }
   }
+  // Feed queen termite if adjacent
+  if(p.energy>140){
+    for(const[nx,ny] of nbrs){const np=get(nx,ny);
+      if(np?.t===T.QUEEN_TERMITE&&p.energy>80){np.energy=Math.min(255,np.energy+20);p.energy-=15;break;}}
+  }
+  // Queen drop — well-fed termites after eating wood can spawn a queen
+  if(p.energy>=200&&POP[T.QUEEN_TERMITE]<POP_MAX[T.QUEEN_TERMITE]){
+    let qNear=false;for(let dy=-20;dy<=20&&!qNear;dy++)for(let dx=-20;dx<=20&&!qNear;dx++){if(get(x+dx,y+dy)?.t===T.QUEEN_TERMITE)qNear=true;}
+    if(!qNear&&Math.random()<0.008){
+      const sc=nbrs.filter(([nx,ny])=>!get(nx,ny));
+      if(sc.length){const[qx,qy]=sc[Math.floor(Math.random()*sc.length)];const ng=mutateGenome(p.g,mutRate);
+        grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_TERMITE,ng,p.sid,{energy:180});popIncr({t:T.QUEEN_TERMITE,sid:p.sid});p.energy-=100;}
+    }
+  }
+}
 
-  // Workers tithe to adjacent queen (after movement / eating this tick).
-  const axN=getNeighbors(p.cellX,p.cellY);
-  if(p.energy>160){
-    for(const[nx,ny] of axN){
-      const np=get(nx,ny);
-      if(np?.t===T.QUEEN&&p.energy>80){np.energy=Math.min(255,np.energy+25);p.energy-=20;break;}
+// ================================================================
+//  QUEEN TERMITE — sessile, spawns worker termites, fed by workers
+// ================================================================
+function stepQueenTermite(x,y,p){
+  p.age++;
+  processBuff(p);
+  // Queen termites depend on workers feeding them (like ant queens)
+  p.energy=Math.min(255,p.energy+0.1);
+  p.energy-=0.12; // slow drain — starves without worker feeding
+  if(p.energy<=0){p.hp-=2;}
+  if(p.hp<=0){set(x,y,null);popDecr(p);return;}
+  if(envDamage(x,y,p))return;
+
+  const spawnRate=22+Math.floor((1-p.g[5]/255)*70);
+  if(p.age%spawnRate===0&&POP[T.TERMITE]<POP_MAX[T.TERMITE]){
+    const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
+    if(nbrs.length){
+      const[nx,ny]=nbrs[Math.floor(Math.random()*nbrs.length)];
+      set(nx,ny,spawnWithSpeciation(T.TERMITE,p.g,p.sid,p.variant,{energy:120}));
+      popIncr({t:T.TERMITE,sid:p.sid});
     }
   }
 }
@@ -1450,6 +1770,7 @@ function stepAnt(x,y,p){
 // ================================================================
 function stepQueen(x,y,p){
   p.age++;
+  processBuff(p);
   const lv=lightGrid[idx(x,y)];
   // Queens get minimal energy from light — they depend on ants bringing food
   p.energy=Math.min(255,p.energy+lv*0.3+0.1);
@@ -1460,7 +1781,7 @@ function stepQueen(x,y,p){
   const spawnRate=20+Math.floor((1-p.g[5]/255)*80);
   if(p.age%spawnRate===0&&POP[T.ANT]<POP_MAX[T.ANT]){
     const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
-    if(nbrs.length){const[nx,ny]=nbrs[Math.floor(Math.random()*nbrs.length)];const ng=mutateGenome(p.g,mutRate);set(nx,ny,agentWithStrain(T.ANT,ng,p.sid,{energy:120}));popIncr({t:T.ANT,sid:p.sid});}
+    if(nbrs.length){const[nx,ny]=nbrs[Math.floor(Math.random()*nbrs.length)];set(nx,ny,spawnWithSpeciation(T.ANT,p.g,p.sid,p.variant,{energy:120}));popIncr({t:T.ANT,sid:p.sid});}
   }
   if(p.age%100===0&&Math.random()<0.4){
     const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
@@ -1480,30 +1801,45 @@ function stepEgg(x,y,p){
 // ================================================================
 //  SPIDER — acid-spit offense, surface tension water-walking
 // ================================================================
-function isSpiderSurface(t){return t===T.WALL||t===T.PLANT_WALL||t===T.FRIDGE_WALL||t===T.WEB||t===T.ICE||t===T.STONE;}
+function isSpiderSurface(t){return t===T.WALL||t===T.PLANT_WALL||t===T.FRIDGE_WALL||t===T.WEB||t===T.WOOD||t===T.ICE||t===T.STONE;}
 
 function stepSpider(x,y,p){
   p.age++;
+  processBuff(p);
+  if(p.buff?.type==='chromadust'&&Math.random()<0.3){const jx=x+Math.floor((Math.random()-0.5)*6),jy=y+Math.floor((Math.random()-0.5)*6);if(inB(jx,jy)&&!get(jx,jy)){swap(x,y,jx,jy);return;}}
+  const svt=p.variant?.traits||[];
   const aggression=p.g[3]/255,resilience=p.g[4]/255;
   p.energy-=0.05+p.g[1]/255*0.06;
   if(envDamage(x,y,p))return;
   const gx2=gv.x,gy2=gv.y,bx=x+gx2,by=y+gy2;
   const belowCell=inB(bx,by)?grid[idx(bx,by)]:null;
+
+  // Spider movement helper — handles wood/web underlay like ant+plant
+  function moveSpiderTo(nx,ny){
+    const originI=idx(x,y),destI=idx(nx,ny);
+    const dest=grid[destI];
+    grid[originI]=(p.under?.t===T.WOOD)?p.under:null;
+    p.under=null;
+    if(dest?.t===T.WOOD){p.under=dest;}
+    else if(dest?.t===T.WEB||dest?.t===T.DETRITUS){/* consume, don't store */}
+    grid[destI]=p; x=nx; y=ny;
+  }
+
   const onSurface=belowCell&&(isSpiderSurface(belowCell.t)||belowCell.t===T.WATER);
   const canCling=getCardinals(x,y).some(([nx,ny])=>{const np=get(nx,ny);return np&&isSpiderSurface(np.t);});
-  if(!onSurface&&!canCling&&!belowCell){if(inB(bx,by)){swap(x,y,bx,by);return;}}
+  if(!onSurface&&!canCling&&!belowCell){if(inB(bx,by)&&!get(bx,by)){moveSpiderTo(bx,by);return;}}
   const nbrs=getNeighbors(x,y);
   // Lay web — avoid hazard zones
-  if(Math.random()<p.g[5]/255*0.08){
+  if(Math.random()<p.g[5]/255*0.08*(svt.includes('web_boost')?3:1)){
     const wc=nbrs.filter(([nx,ny])=>!get(nx,ny)&&!nearType(nx,ny,T.ACID,T.LAVA));
     if(wc.length){const[wx,wy]=wc[Math.floor(Math.random()*wc.length)];grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:200+Math.floor(Math.random()*150)};}
   }
   const smokeBlind=nearType(x,y,T.SMOKE);
-  const radius=smokeBlind?2:5+Math.floor(aggression*5);
+  const radius=smokeBlind?2:(svt.includes('ambush')?2:5+Math.floor(aggression*5));
   let tx2=-1,ty2=-1,bd=999;
   for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){
     const tp=get(x+dx,y+dy);
-    if(tp&&(tp.t===T.ANT||tp.t===T.MITE||tp.t===T.EGG)){const d=Math.abs(dx)+Math.abs(dy);if(d<bd){bd=d;tx2=x+dx;ty2=y+dy;}}
+    if(tp&&(tp.t===T.ANT||tp.t===T.TERMITE||tp.t===T.MITE||tp.t===T.EGG)){const d=Math.abs(dx)+Math.abs(dy);if(d<bd){bd=d;tx2=x+dx;ty2=y+dy;}}
   }
   if(tx2>=0){
     const ddx=Math.sign(tx2-x),ddy=Math.sign(ty2-y),nx=x+ddx,ny=y+ddy,np=get(nx,ny);
@@ -1512,11 +1848,14 @@ function stepSpider(x,y,p){
       const bx2=tx2+ddx,by2=ty2+ddy;const beyond=inB(bx2,by2)?get(bx2,by2):null;
       if(beyond?.t===T.FIRE||beyond?.t===T.LAVA){if(np?.t===T.ANT||np?.t===T.MITE){np.hp-=30;p.energy+=15;}}
     }
-    if(!np||np.t===T.WEB||np.t===T.DETRITUS){swap(x,y,nx,ny);}
-    else if(np?.t===T.ANT||np?.t===T.MITE||np?.t===T.EGG){
-      const dmg=15+Math.floor(aggression*35);np.hp-=dmg;p.energy+=20;
+    if(!np||np.t===T.WEB||np.t===T.WOOD||np.t===T.DETRITUS){moveSpiderTo(nx,ny);}
+    else if(np?.t===T.ANT||np?.t===T.TERMITE||np?.t===T.MITE||np?.t===T.EGG){
+      const packBonus=svt.includes('pack')&&getNeighbors(x,y).some(([ax,ay])=>{const ap=get(ax,ay);return ap?.t===T.SPIDER;})?2:1;
+      const dmg=(15+Math.floor(aggression*35))*packBonus;
+      if(svt.includes('venom'))np.hp=0;else np.hp-=dmg;
+      p.energy+=20;
       if(np.hp<=0){
-        grid[idx(nx,ny)]=null;if(np.t===T.ANT||np.t===T.MITE)popDecr(np);
+        grid[idx(nx,ny)]=null;if(np.t===T.ANT||np.t===T.TERMITE||np.t===T.MITE)popDecr(np);
         // Successful kill while well-fed → chance to drop a queen spider
         if(p.energy>=190&&Math.random()<0.05&&POP[T.QUEEN_SPIDER]<POP_MAX[T.QUEEN_SPIDER]){
           let qNear2=false;
@@ -1539,14 +1878,15 @@ function stepSpider(x,y,p){
       if(inB(midX,midY)&&!get(midX,midY)){grid[idx(midX,midY)]={t:T.ACID,age:0,ttl:60};p.energy-=15;}
     }
   } else {
-    if(Math.random()<0.15){
+    const spiderMoveChance=svt.includes('fast')?0.45:0.15;
+    if(Math.random()<spiderMoveChance){
       const scored=nbrs.map(([nx,ny])=>{
         const np=get(nx,ny);
         if(!np){const ss=getNeighbors(nx,ny).some(([ax,ay])=>{const ap=get(ax,ay);return ap&&isSpiderSurface(ap.t);})?2:1;return[nx,ny,ss+hazardPenalty(nx,ny,resilience)];}
-        if(np.t===T.WEB)return[nx,ny,3];if(np.t===T.DETRITUS)return[nx,ny,1];return null;
+        if(np.t===T.WEB)return[nx,ny,3];if(np.t===T.WOOD)return[nx,ny,3];if(np.t===T.DETRITUS)return[nx,ny,1];return null;
       }).filter(Boolean);
       scored.sort((a,b)=>b[2]-a[2]);const best=scored[0];
-      if(best&&best[2]>0)swap(x,y,best[0],best[1]);
+      if(best&&best[2]>0)moveSpiderTo(best[0],best[1]);
     }
   }
   for(const[nx,ny] of nbrs){if(get(nx,ny)?.t===T.FUNGI&&Math.random()<0.06){p.hp-=5;break;}}
@@ -1559,7 +1899,7 @@ function stepSpider(x,y,p){
   }
   if(p.energy>220&&Math.random()<p.g[5]/255*0.003&&POP[T.SPIDER]<POP_MAX[T.SPIDER]){
     const on=nbrs.filter(([nx,ny])=>!get(nx,ny));
-    if(on.length){const[nx,ny]=on[Math.floor(Math.random()*on.length)];const ng=mutateGenome(p.g,mutRate);set(nx,ny,agentWithStrain(T.SPIDER,ng,p.sid,{energy:80}));popIncr({t:T.SPIDER,sid:p.sid});p.energy-=80;}
+    if(on.length){const[nx,ny]=on[Math.floor(Math.random()*on.length)];set(nx,ny,spawnWithSpeciation(T.SPIDER,p.g,p.sid,p.variant,{energy:80}));popIncr({t:T.SPIDER,sid:p.sid});p.energy-=80;}
   }
 }
 
@@ -1572,8 +1912,10 @@ function stepSpider(x,y,p){
 // ================================================================
 function stepFungi(x,y,p){
   p.age++;
+  processBuff(p);
+  const fvt=p.variant?.traits||[];
   const lv=lightGrid[idx(x,y)],lightSens=p.g[3]/255,spreadSpeed=p.g[1]/255,resilience=p.g[4]/255;
-  if(lv>0.6){p.hp-=lv*4*lightSens*(1-resilience*0.4);if(p.hp<=0){set(x,y,null);popDecr(p);return;}}
+  if(lv>0.6&&!fvt.includes('biolum')){p.hp-=lv*4*lightSens*(1-resilience*0.4);if(p.hp<=0){set(x,y,null);popDecr(p);return;}}
   const nbrs=getNeighbors(x,y);
   let moistureBoost=0;
   for(const[nx,ny] of nbrs){
@@ -1605,8 +1947,23 @@ function stepFungi(x,y,p){
     if(np.t===T.GOLD_SAND&&Math.random()<0.04)p.energy=Math.min(255,p.energy+10);
     if(np.t===T.WATER)moistureBoost+=0.015;
   }
+  // parasite trait: drain 1 HP from adjacent creatures each tick
+  if(fvt.includes('parasite')){
+    for(const[nx,ny] of nbrs){const np=get(nx,ny);if(np&&(np.t===T.ANT||np.t===T.TERMITE||np.t===T.MITE||np.t===T.SPIDER)){np.hp-=1;p.energy=Math.min(255,p.energy+1);}}
+  }
   if(nearType(x,y,T.ICE)){p.energy=Math.min(255,p.energy+0.1);return;}
-  p.energy-=0.04;if(p.energy<=0||p.hp<=0){set(x,y,null);popDecr(p);return;}
+  p.energy-=0.04;if(p.energy<=0||p.hp<=0){
+    // explode trait: burst spores to 3-5 nearby empty cells on death
+    if(fvt.includes('explode')&&POP[T.FUNGI]<POP_MAX[T.FUNGI]){
+      const burstCount=3+Math.floor(Math.random()*3);
+      const empties=nbrs.filter(([nx,ny])=>!get(nx,ny));
+      for(let b=0;b<burstCount&&b<empties.length;b++){
+        const[nx,ny]=empties[b];const ng=mutateGenome(p.g,mutRate);
+        set(nx,ny,agentWithStrain(T.FUNGI,ng,p.sid,{energy:60}));popIncr({t:T.FUNGI,sid:p.sid});
+      }
+    }
+    set(x,y,null);popDecr(p);return;
+  }
   // Network sharing
   for(const[nx,ny] of nbrs){const np=get(nx,ny);if(np?.t===T.FUNGI&&np.energy<p.energy-20){const share=Math.min(5,(p.energy-np.energy)*0.3);p.energy-=share;np.energy+=share;}}
   const spreadChance=spreadSpeed*0.02+moistureBoost;
@@ -1644,6 +2001,9 @@ function stepSpore(x,y,p){
 // ================================================================
 function stepMite(x,y,p){
   p.age++;
+  processBuff(p);
+  if(p.buff?.type==='chromadust'&&Math.random()<0.3){const jx=x+Math.floor((Math.random()-0.5)*6),jy=y+Math.floor((Math.random()-0.5)*6);if(inB(jx,jy)&&!get(jx,jy)){swap(x,y,jx,jy);return;}}
+  const mvt=p.variant?.traits||[];
   const speed=p.g[1]/255,aggression=p.g[3]/255,resilience=p.g[4]/255;
   p.energy-=0.1+speed*0.1;
   if(p.hp<=0||p.energy<=0){set(x,y,null);popDecr(p);return;}
@@ -1690,18 +2050,21 @@ function stepMite(x,y,p){
     if(fleeDir.length){const[mx,my]=fleeDir[Math.floor(Math.random()*fleeDir.length)];swap(x,y,mx,my);[x,y]=[mx,my];}
     return;
   }
-  const steps=onIce?3+Math.floor(speed*2):1+Math.floor(speed*1.5);
+  const iceStepMult=mvt.includes('ice_boost')?3:1;
+  const steps=onIce?(3+Math.floor(speed*2))*iceStepMult:1+Math.floor(speed*1.5);
   for(let s=0;s<steps;s++){
     const dirs=getNeighbors(x,y).filter(([nx,ny])=>{const np=get(nx,ny);if(np&&np.t!==T.FUNGI&&np.t!==T.DETRITUS)return false;const db=get(nx+gv.x,ny+gv.y);return!(db?.t===T.WATER||db?.t===T.ACID);});
-    if(!dirs.length)break;const[mx,my]=dirs[Math.floor(Math.random()*dirs.length)];swap(x,y,mx,my);[x,y]=[mx,my];
+    if(!dirs.length)break;const[mx,my]=dirs[Math.floor(Math.random()*dirs.length)];const prevX=x,prevY=y;swap(x,y,mx,my);[x,y]=[mx,my];
+    // acid_trail: leave acid at previous position occasionally
+    if(mvt.includes('acid_trail')&&Math.random()<0.05&&!grid[idx(prevX,prevY)]){grid[idx(prevX,prevY)]={t:T.ACID,age:0,ttl:30};}
   }
   if(p.energy>=220&&POP[T.QUEEN_MITE]<POP_MAX[T.QUEEN_MITE]){
     let qNear=false;for(let dy=-20;dy<=20&&!qNear;dy++)for(let dx=-20;dx<=20&&!qNear;dx++){if(get(x+dx,y+dy)?.t===T.QUEEN_MITE)qNear=true;}
     if(!qNear&&Math.random()<0.008){const nbrs2=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));if(nbrs2.length){const[qx,qy]=nbrs2[Math.floor(Math.random()*nbrs2.length)];const ng=mutateGenome(p.g,mutRate);grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_MITE,ng,p.sid,{energy:160});popIncr({t:T.QUEEN_MITE,sid:p.sid});p.energy-=100;}}
   }
-  if(p.energy>200&&Math.random()<p.g[5]/255*0.015&&POP[T.MITE]<POP_MAX[T.MITE]){
+  if(p.energy>200&&Math.random()<p.g[5]/255*0.015*(mvt.includes('fast_repro')?2:1)&&POP[T.MITE]<POP_MAX[T.MITE]){
     const nbrs2=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
-    if(nbrs2.length){const[nx,ny]=nbrs2[Math.floor(Math.random()*nbrs2.length)];const ng=mutateGenome(p.g,mutRate);set(nx,ny,agentWithStrain(T.MITE,ng,p.sid,{energy:80}));popIncr({t:T.MITE,sid:p.sid});p.energy-=60;}
+    if(nbrs2.length){const[nx,ny]=nbrs2[Math.floor(Math.random()*nbrs2.length)];set(nx,ny,spawnWithSpeciation(T.MITE,p.g,p.sid,p.variant,{energy:80}));popIncr({t:T.MITE,sid:p.sid});p.energy-=60;}
   }
 }
 
@@ -1831,8 +2194,7 @@ function stepQueenSpider(x,y,p){
     const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
     if(nbrs.length){
       const[nx,ny]=nbrs[Math.floor(Math.random()*nbrs.length)];
-      const ng=mutateGenome(p.g,mutRate);
-      set(nx,ny,agentWithStrain(T.SPIDER,ng,p.sid,{energy:120}));
+      set(nx,ny,spawnWithSpeciation(T.SPIDER,p.g,p.sid,p.variant,{energy:120}));
       popIncr({t:T.SPIDER,sid:p.sid});
     }
   }
@@ -1857,8 +2219,7 @@ function stepQueenMite(x,y,p){
     const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
     if(nbrs.length){
       const[nx,ny]=nbrs[Math.floor(Math.random()*nbrs.length)];
-      const ng=mutateGenome(p.g,mutRate);
-      set(nx,ny,agentWithStrain(T.MITE,ng,p.sid,{energy:100}));
+      set(nx,ny,spawnWithSpeciation(T.MITE,p.g,p.sid,p.variant,{energy:100}));
       popIncr({t:T.MITE,sid:p.sid});
     }
   }
@@ -1972,7 +2333,60 @@ function stepOxygen(x,y,p){
 }
 
 function stepWood(x,y,p){
+  // Fire vulnerability
   for(const[nx,ny] of getNeighbors(x,y)){const np=get(nx,ny);if((np?.t===T.FIRE||np?.t===T.LAVA)&&Math.random()<0.004){grid[idx(x,y)]={t:T.FIRE,age:0,ttl:80+Math.floor(Math.random()*80)};return;}}
+
+  // GROWTH — wood grows like a tree: upward trunk with heavy branching
+  // Needs to be rooted (adjacent to sand, detritus, gold_sand, or other wood)
+  const nbrs=getNeighbors(x,y);
+  const rooted=nbrs.some(([nx,ny])=>{const t=get(nx,ny)?.t;return t===T.SAND||t===T.GOLD_SAND||t===T.DETRITUS||t===T.WOOD||t===T.CLAY_HARD;});
+  if(!rooted)return;
+
+  // Light helps but isn't required — wood grows slowly even in dim light
+  const lv=lightGrid[idx(x,y)];
+  const lightBoost=lv>0.2?2:1; // grows faster in sunlight
+
+  // Growth timer
+  if(p.growTimer===undefined)p.growTimer=Math.floor(15+Math.random()*20);
+  p.growTimer-=lightBoost;
+  if(p.growTimer>0)return;
+  p.growTimer=Math.floor(15+Math.random()*25);
+
+  // Count nearby wood to limit density (don't fill entire screen)
+  let woodCount=0;
+  for(const[nx,ny] of nbrs){if(get(nx,ny)?.t===T.WOOD)woodCount++;}
+  if(woodCount>=5)return; // too dense, stop growing
+
+  // Growth direction — trunk grows up, branches grow sideways with high probability
+  const gx2=gv.x,gy2=gv.y;
+  const candidates=[];
+  // Upward (against gravity) — trunk
+  const ux=x-gx2,uy=y-gy2;
+  if(inB(ux,uy)&&!get(ux,uy))candidates.push([ux,uy,4]); // trunk priority
+
+  // Sideways — branches (heavy branching)
+  const perp=getPerp();
+  for(const d of perp){
+    const sx=x+d.x,sy=y+d.y;
+    if(inB(sx,sy)&&!get(sx,sy))candidates.push([sx,sy,3]); // strong branch tendency
+    // Diagonal up-sideways — angled branches
+    const dx=x+d.x-gx2,dy=y+d.y-gy2;
+    if(inB(dx,dy)&&!get(dx,dy))candidates.push([dx,dy,2]);
+  }
+
+  // Occasional downward branch (drooping)
+  const bx=x+gx2,by=y+gy2;
+  if(inB(bx,by)&&!get(bx,by)&&Math.random()<0.15)candidates.push([bx,by,1]);
+
+  if(!candidates.length)return;
+
+  // Weighted random selection
+  const total=candidates.reduce((s,c)=>s+c[2],0);
+  let r=Math.random()*total;
+  let chosen=candidates[candidates.length-1];
+  for(const c of candidates){r-=c[2];if(r<=0){chosen=c;break;}}
+
+  grid[idx(chosen[0],chosen[1])]={t:T.WOOD,age:0,growTimer:Math.floor(20+Math.random()*30)};
 }
 
 function stepAsh(x,y,p){
@@ -2011,6 +2425,28 @@ function stepSalt(x,y,p){
   }
   tryFall(x,y,p);
 }
+
+// ================================================================
+//  PHARMACY — drug particle step functions
+//  All drugs: flow like liquid, apply buff on creature contact, decay via TTL
+// ================================================================
+function stepDrug(x,y,p,buffType,buffTTL){
+  p.ttl=(p.ttl||300)-1;
+  if(p.ttl<=0){grid[idx(x,y)]=null;return;}
+  for(const[nx,ny] of getNeighbors(x,y)){
+    const np=get(nx,ny);
+    if(np?.g){applyBuff(np,buffType,buffTTL);grid[idx(x,y)]=null;return;}
+  }
+  tryFlow(x,y);
+}
+function stepStimulant(x,y,p){stepDrug(x,y,p,'stimulant',600);}
+function stepChromadust(x,y,p){stepDrug(x,y,p,'chromadust',500);}
+function stepNectar(x,y,p){stepDrug(x,y,p,'nectar',400);}
+function stepVenomBrew(x,y,p){stepDrug(x,y,p,'venom',300);}
+function stepPheromone(x,y,p){stepDrug(x,y,p,'pheromone',400);}
+function stepCalcifier(x,y,p){stepDrug(x,y,p,'calcifier',500);}
+function stepSporeBomb(x,y,p){stepDrug(x,y,p,'sporebomb',300);}
+function stepGigantism(x,y,p){stepDrug(x,y,p,'gigantism',600);}
 
 // ================================================================
 //  CLOUD — water spout, queen of water
@@ -2387,7 +2823,7 @@ function maybeMutateStrain(p,ng){
   const parent=strainRegistry.get(p.sid);
   if(!parent)return;
   let drift=0;for(let i=0;i<6;i++)drift+=Math.abs(ng[i]-parent.genome[i]);
-  if(drift>80){registerStrain(p.t,ng,p.sid);}
+  if(drift>40){registerStrain(p.t,ng,p.sid);} // lower threshold — more visible strain diversity
 }
 
 // ================================================================
@@ -2435,6 +2871,8 @@ function stepParticle(x,y){
   const p=grid[idx(x,y)];
   if(!p)return;
   p.age++;
+  // Pharmacy crafting — 100% on contact, 1:1:1
+  if(tryCraft(x,y,p))return;
   // PROG_VOID and FROGSTONE run before immovable check (they self-anchor)
   if(p.t===T.PROG_VOID){stepProgVoid(x,y,p);return;}
   if(p.t===T.FROGSTONE){
@@ -2443,6 +2881,7 @@ function stepParticle(x,y){
     stepFrogstone(x,y,p);
     return;
   }
+  if(p.t===T.WOOD){stepWood(x,y,p);return;} // wood grows — must run before immovable check
   if(isImmovable(p.t))return;
   if(p.t===T.CLAY_HARD)return;
   if(p.t===T.STONE&&(p.settled||0)>=3)return; // settled stone = static
@@ -2470,6 +2909,15 @@ function stepParticle(x,y){
   if(p.t===T.GUNPOWDER){stepGunpowder(x,y,p);return;}
   if(p.t===T.SALT){stepSalt(x,y,p);return;}
   if(p.t===T.STONE){stepStone(x,y,p);return;}
+  // Pharmacy drugs
+  if(p.t===T.STIMULANT){stepStimulant(x,y,p);return;}
+  if(p.t===T.CHROMADUST){stepChromadust(x,y,p);return;}
+  if(p.t===T.NECTAR){stepNectar(x,y,p);return;}
+  if(p.t===T.VENOM_BREW){stepVenomBrew(x,y,p);return;}
+  if(p.t===T.PHEROMONE){stepPheromone(x,y,p);return;}
+  if(p.t===T.CALCIFIER){stepCalcifier(x,y,p);return;}
+  if(p.t===T.SPORE_BOMB){stepSporeBomb(x,y,p);return;}
+  if(p.t===T.GIGANTISM){stepGigantism(x,y,p);return;}
 
   // Plant wall — biological, needs its own step (decay, detritus)
 
@@ -2492,6 +2940,7 @@ function stepParticle(x,y){
   if(p.t===T.SEED){stepSeed(x,y,p);return;}
   if(p.t===T.QUEEN_SPIDER){stepQueenSpider(x,y,p);return;}
   if(p.t===T.QUEEN_MITE){stepQueenMite(x,y,p);return;}
+  if(p.t===T.QUEEN_TERMITE){stepQueenTermite(x,y,p);return;}
 
   // Passive gravity — only mites (fast, skittery) among agents obey simple density physics
   // Ants and spiders handle gravity inside their own step functions
@@ -2513,6 +2962,7 @@ function stepParticle(x,y){
   switch(p.t){
     case T.PLANT:   stepPlant(x,y,p);   break;
     case T.ANT:     stepAnt(x,y,p);     break;
+    case T.TERMITE: stepTermite(x,y,p); break;
     case T.QUEEN:   stepQueen(x,y,p);   break;
     case T.SPIDER:  stepSpider(x,y,p);  break;
     case T.FUNGI:   stepFungi(x,y,p);   break;
@@ -2648,6 +3098,7 @@ function getColor(p,x,y){
       if(p.reinforced){r=70+v;g=78+v;b=100+v;} // darker blue-grey — reinforced, ant-proof
       else{r=95+v;g=105+v;b=130+v;}              // normal diggable clay
       break;}
+    case T.TUNNEL_WALL:{const v=Math.floor(Math.random()*6);r=60+v;g=70+v;b=85+v;break;} // dark blue-grey, distinct from clay
     case T.FRIDGE_WALL:{const fl=Math.random()<0.1;r=fl?80:50;g=fl?160:130;b=fl?220:200;break;}
     case T.PLANT_WALL: r=20;g=80;b=25;break;
     case T.SAND:       r=185+Math.floor(Math.random()*10);g=155;b=80;break;
@@ -2694,12 +3145,22 @@ function getColor(p,x,y){
     case T.ICE:   {const s=Math.random()<0.1;r=s?240:180;g=s?250:220;b=s?255:240;break;}
     case T.SMOKE: {const a=Math.min(1,(p.ttl||60)/60);r=g=b=60+(a*50)|0;break;}
     case T.OXYGEN: {const a=Math.min(1,(p.ttl||120)/120);const fl=Math.random()<0.15;r=fl?140:80+(a*40)|0;g=fl?220:160+(a*50)|0;b=fl?255:220+(a*30)|0;break;}
+    // Pharmacy drugs
+    case T.STIMULANT:{const fl=Math.random();r=255;g=fl<0.5?140:180;b=0;break;}
+    case T.CHROMADUST:{const h=(p.age*8)%360;[r,g,b]=hslToRgb(h,90,55);break;}
+    case T.NECTAR:{const fl=Math.random()<0.2;r=fl?255:220;g=fl?220:190;b=fl?80:0;break;}
+    case T.VENOM_BREW:{const fl=Math.random();r=fl<0.5?100:60;g=fl<0.3?200:160;b=fl<0.5?80:180;break;}
+    case T.PHEROMONE:{const fl=Math.random()<0.3;r=fl?220:180;g=fl?160:120;b=fl?40:20;break;}
+    case T.CALCIFIER:{const v=Math.floor(Math.random()*15);r=140+v;g=140+v;b=150+v;break;}
+    case T.SPORE_BOMB:{const fl=Math.random();r=fl<0.3?120:60;g=0;b=fl<0.5?180:120;break;}
+    case T.GIGANTISM:{const fl=Math.random()<0.2;r=fl?255:180;g=fl?100:60;b=fl?100:200;break;}
     case T.WOOD:  {const v=Math.floor(Math.random()*15);r=100+v;g=65+v;b=30;break;}
     case T.ASH:   {const v=Math.floor(Math.random()*20);r=70+v;g=68+v;b=65+v;break;}
     case T.ACID:  {const fl=Math.random()<0.2;r=fl?255:210;g=fl?220:170;b=fl?0:0;break;} // toxic yellow-orange
     case T.GUNPOWDER:{const v=Math.floor(Math.random()*8);r=60+v;g=55+v;b=50+v;break;}
     case T.SALT:  {const v=Math.floor(Math.random()*20);r=220+v;g=220+v;b=220+v;break;}
     case T.QUEEN_SPIDER:{const f=Math.random()<0.15;r=f?220:170;g=f?80:50;b=f?255:210;break;} // vivid purple
+    case T.QUEEN_TERMITE:{const f=Math.random()<0.15;r=f?255:220;g=f?180:140;b=f?60:20;break;} // bright warm orange
     case T.FROGSTONE: {
       const hubX=p.hubX||x, hubY=p.hubY||y;
       const sunPow2=Math.max(0,Math.min(1,1-(Math.sqrt(Math.pow(sunX-hubX,2)+Math.pow(sunY-hubY,2))/(W*0.45))));
@@ -2728,6 +3189,24 @@ function getColor(p,x,y){
     }
     default:
       if(p.g){
+        // Variant species color override — dramatic hue shift
+        if(p.variant?.color&&!p.buff){
+          const vh=p.variant.color.hue,vs=p.variant.color.sat;
+          const vl=35+((p.hp||100)/100)*18+(lv*6);
+          [r,g,b]=hslToRgb(vh,vs,vl);break;
+        }
+        // Buff visual overrides
+        if(p.buff){
+          const bt=p.buff.type;
+          if(bt==='chromadust'){const h=(p.age*12)%360;[r,g,b]=hslToRgb(h,95,50);break;}
+          if(bt==='stimulant'){const pu=Math.sin(p.age*0.3)*0.3+0.7;r=Math.floor(255*pu);g=Math.floor(160*pu);b=0;break;}
+          if(bt==='venom'){r=60;g=Math.floor(180+Math.random()*40);b=80;break;}
+          if(bt==='gigantism'){const pu=Math.sin(p.age*0.15)*0.3+0.7;r=Math.floor(200*pu);g=Math.floor(60*pu);b=Math.floor(60*pu);break;}
+          if(bt==='calcifier'){r=g=b=Math.floor(160+Math.random()*30);break;}
+          if(bt==='pheromone'){r=220;g=180;b=40;break;}
+          if(bt==='nectar'){r=240;g=220;b=Math.floor(80+Math.sin(p.age*0.2)*40);break;}
+          if(bt==='sporebomb'){const pu=Math.sin(p.age*0.4)*0.5+0.5;r=Math.floor(120*pu);g=0;b=Math.floor(180*pu);break;}
+        }
         const baseHue=KINGDOM_HUE[p.t]||180;
         const hue=baseHue+(p.g[3]/255)*30-15;
         let sat=50+p.g[4]/255*30;
@@ -2814,7 +3293,7 @@ function simStep(){
   // Sample population history every 100 ticks
   if(tickCount-lastPopSample>=100){
     lastPopSample=tickCount;
-    for(const t of [T.PLANT,T.ANT,T.QUEEN,T.SPIDER,T.FUNGI,T.MITE,T.QUEEN_SPIDER,T.QUEEN_MITE]){
+    for(const t of [T.PLANT,T.ANT,T.TERMITE,T.QUEEN,T.QUEEN_TERMITE,T.SPIDER,T.FUNGI,T.MITE,T.QUEEN_SPIDER,T.QUEEN_MITE]){
       POP_HISTORY[t].push(POP[t]);
       if(POP_HISTORY[t].length>POP_GRAPH_MAX) POP_HISTORY[t].shift();
     }
@@ -2857,14 +3336,14 @@ function updateUI(){
   const strains=[...strainRegistry.values()].length;
   s.innerHTML=[
     ['TOTAL AGENTS',totalPop],['STRAINS',strains],
-    ['PLANTS',POP[T.PLANT]],['ANTS',POP[T.ANT]],['QUEENS',POP[T.QUEEN]],
+    ['PLANTS',POP[T.PLANT]],['ANTS',POP[T.ANT]],['TERMITES',POP[T.TERMITE]],['QUEENS',POP[T.QUEEN]],
     ['SPIDERS',POP[T.SPIDER]],['FUNGI',POP[T.FUNGI]],['MITES',POP[T.MITE]],
   ].map(([n,v])=>`<div class="statrow"><span class="sname">${n}</span><span class="sval">${v}</span></div>`).join('');
 
   // Population bars
   const kbarsEl=document.getElementById('kbars');
   const kbarData=[
-    [T.PLANT,'PLANT',K_COLORS[T.PLANT]],[T.ANT,'ANT',K_COLORS[T.ANT]],
+    [T.PLANT,'PLANT',K_COLORS[T.PLANT]],[T.ANT,'ANT',K_COLORS[T.ANT]],[T.TERMITE,'TERMITE','#cc8844'],
     [T.QUEEN,'QUEEN',K_COLORS[T.QUEEN]],[T.SPIDER,'SPIDER',K_COLORS[T.SPIDER]],
     [T.FUNGI,'FUNGI',K_COLORS[T.FUNGI]],[T.MITE,'MITE',K_COLORS[T.MITE]],
   ];
@@ -2891,6 +3370,7 @@ function drawPopGraph(){
   const series=[
     {t:T.PLANT, name:'PLANT',  col:K_COLORS[T.PLANT]},
     {t:T.ANT,   name:'ANT',    col:K_COLORS[T.ANT]},
+    {t:T.TERMITE,name:'TERMITE',col:'#cc8844'},
     {t:T.QUEEN, name:'QUEEN',  col:K_COLORS[T.QUEEN]},
     {t:T.SPIDER,name:'SPIDER', col:K_COLORS[T.SPIDER]},
     {t:T.FUNGI, name:'FUNGI',  col:K_COLORS[T.FUNGI]},
@@ -3050,9 +3530,10 @@ const TIP_LABELS={
   [T.WALL]:'WALL',[T.FRIDGE_WALL]:'FRIDGE WALL',[T.CLAY]:'CLAY (wet)',[T.CLAY_HARD]:'CLAY (set)',[T.SAND]:'SAND',[T.GOLD_SAND]:'GOLD SAND',
   [T.WHITE_SAND]:'WHITE SAND',[T.DETRITUS]:'DETRITUS',[T.WATER]:'WATER',
   [T.OIL]:'OIL',[T.FIRE]:'FIRE',[T.MUTAGEN]:'LIFE SEED',
-  [T.PLANT]:'PLANT',[T.ANT]:'ANT',[T.QUEEN]:'QUEEN',
+  [T.PLANT]:'PLANT',[T.ANT]:'ANT',[T.TERMITE]:'TERMITE',[T.QUEEN]:'QUEEN',
   [T.SPIDER]:'SPIDER',[T.FUNGI]:'FUNGI',[T.MITE]:'MITE',
   [T.PLANT_WALL]:'PLANT WALL',[T.WEB]:'WEB',[T.SPORE]:'SPORE',[T.EGG]:'EGG',
+  [T.TUNNEL_WALL]:'TUNNEL WALL',
   [T.FROGSTONE]:'FROGSTONE',
 };
 const TIP_COLORS={
@@ -3062,7 +3543,7 @@ const TIP_COLORS={
   [T.PLANT]:K_COLORS[T.PLANT],[T.ANT]:K_COLORS[T.ANT],[T.QUEEN]:K_COLORS[T.QUEEN],
   [T.SPIDER]:K_COLORS[T.SPIDER],[T.FUNGI]:K_COLORS[T.FUNGI],[T.MITE]:K_COLORS[T.MITE],
   [T.PLANT_WALL]:'#226622',[T.WEB]:'#aaaaaa',[T.SPORE]:'#9955cc',[T.EGG]:'#ddcc88',
-  [T.FROGSTONE]:'#88cc44',
+  [T.FROGSTONE]:'#88cc44',[T.TERMITE]:'#cc8844',[T.QUEEN_TERMITE]:'#ee9944',[T.TUNNEL_WALL]:'#556688',
 };
 
 function updateHoverTip(clientX, clientY){
@@ -3208,6 +3689,15 @@ function drawAt(cx,cy){
         case 'acid':       grid[idx(px,py)]={t:T.ACID,age:0,ttl:300};break;
         case 'gunpowder':  grid[idx(px,py)]={t:T.GUNPOWDER,age:0};break;
         case 'salt':       grid[idx(px,py)]={t:T.SALT,age:0};break;
+        // Pharmacy drugs
+        case 'stimulant':  grid[idx(px,py)]={t:T.STIMULANT,age:0,ttl:400};break;
+        case 'chromadust': grid[idx(px,py)]={t:T.CHROMADUST,age:0,ttl:350};break;
+        case 'nectar':     grid[idx(px,py)]={t:T.NECTAR,age:0,ttl:400};break;
+        case 'venomBrew':  grid[idx(px,py)]={t:T.VENOM_BREW,age:0,ttl:300};break;
+        case 'pheromone':  grid[idx(px,py)]={t:T.PHEROMONE,age:0,ttl:350};break;
+        case 'calcifier':  grid[idx(px,py)]={t:T.CALCIFIER,age:0,ttl:400};break;
+        case 'sporeBomb':  grid[idx(px,py)]={t:T.SPORE_BOMB,age:0,ttl:300};break;
+        case 'gigantism':  grid[idx(px,py)]={t:T.GIGANTISM,age:0,ttl:400};break;
         case 'mutagen': {
           // Life Seed drops a burst of random organisms at cursor + scatter several seeds
           const seedTypes=[T.ANT,T.PLANT,T.SPIDER,T.FUNGI,T.MITE,T.QUEEN,T.QUEEN_SPIDER,T.QUEEN_MITE];
@@ -3237,6 +3727,8 @@ function drawAt(cx,cy){
         case 'seed':{const g=randomGenome(T.PLANT);const s=registerStrain(T.PLANT,g);grid[idx(px,py)]={t:T.SEED,age:0,g,sid:s,energy:120};break;}
         case 'plant':{const g=randomGenome(T.PLANT);const s=registerStrain(T.PLANT,g);grid[idx(px,py)]=agentWithStrain(T.PLANT,g,s,{energy:120});POP[T.PLANT]++;break;}
         case 'ant':{const g=randomGenome(T.ANT);const s=registerStrain(T.ANT,g);grid[idx(px,py)]=agentWithStrain(T.ANT,g,s,{energy:150});POP[T.ANT]++;break;}
+        case 'termite':{const g=randomGenome(T.TERMITE);const s=registerStrain(T.TERMITE,g);grid[idx(px,py)]=agentWithStrain(T.TERMITE,g,s,{energy:150});POP[T.TERMITE]++;break;}
+        case 'queenTermite':{const g=randomGenome(T.TERMITE);const s=registerStrain(T.QUEEN_TERMITE,g);grid[idx(px,py)]=agentWithStrain(T.QUEEN_TERMITE,g,s,{energy:200});POP[T.QUEEN_TERMITE]++;break;}
         case 'queen':{const g=randomGenome(T.QUEEN);const s=registerStrain(T.QUEEN,g);grid[idx(px,py)]=agentWithStrain(T.QUEEN,g,s,{energy:200});POP[T.QUEEN]++;break;}
         case 'spider':{const g=randomGenome(T.SPIDER);const s=registerStrain(T.SPIDER,g);grid[idx(px,py)]=agentWithStrain(T.SPIDER,g,s,{energy:150});POP[T.SPIDER]++;break;}
         case 'queenSpider':{const g=randomGenome(T.QUEEN_SPIDER);const s=registerStrain(T.QUEEN_SPIDER,g);grid[idx(px,py)]=agentWithStrain(T.QUEEN_SPIDER,g,s,{energy:200});POP[T.QUEEN_SPIDER]++;break;}
@@ -3392,6 +3884,8 @@ document.getElementById('mu').addEventListener('input',e=>{mutRate=+e.target.val
 const ELEMENTS=[
   {cat:'KINGDOMS',key:'seed',        label:'PLANT SEED',   col:'#4aaa22',          tag:'🌱'},
   {cat:null,      key:'ant',         label:'ANT',          col:K_COLORS[T.ANT],          tag:'🐜'},
+  {cat:null,      key:'termite',     label:'TERMITE',      col:'#cc8844',                  tag:'🪲'},
+  {cat:null,      key:'queenTermite',label:'Q.TERMITE',    col:'#ee9944',                  tag:'🪲👑'},
   {cat:null,      key:'queen',       label:'QUEEN ANT',    col:K_COLORS[T.QUEEN],        tag:'👑'},
   {cat:null,      key:'spider',      label:'SPIDER',       col:K_COLORS[T.SPIDER],       tag:'🕷'},
   {cat:null,      key:'queenSpider', label:'QUEEN SPIDER', col:K_COLORS[T.QUEEN_SPIDER], tag:'🕸👑'},
@@ -3405,6 +3899,14 @@ const ELEMENTS=[
   {cat:null,      key:'progVoid',    label:'PROG VOID',    col:'#220033',  tag:'⚙▼'},
   {cat:null,      key:'fire',    label:'FIRE',       col:'#ff4400',  tag:'🔥'},
   {cat:null,      key:'lava',    label:'LAVA',       col:'#ff5500',  tag:'ρ8'},
+  {cat:'PHARMACY',key:'stimulant',  label:'STIMULANT',   col:'#ff8c00',  tag:'💊'},
+  {cat:null,      key:'chromadust', label:'CHROMADUST',  col:'#ff00ff',  tag:'🌈'},
+  {cat:null,      key:'nectar',     label:'NECTAR',      col:'#ffcc00',  tag:'🍯'},
+  {cat:null,      key:'venomBrew',  label:'VENOM BREW',  col:'#44aa44',  tag:'☠'},
+  {cat:null,      key:'pheromone',  label:'PHEROMONE',   col:'#cc8820',  tag:'👃'},
+  {cat:null,      key:'calcifier',  label:'CALCIFIER',   col:'#9090a0',  tag:'🪨'},
+  {cat:null,      key:'sporeBomb',  label:'SPORE BOMB',  col:'#6600aa',  tag:'💣'},
+  {cat:null,      key:'gigantism',  label:'GIGANTISM',   col:'#aa3366',  tag:'⬆'},
   {cat:'ABIOTIC', key:'sand',    label:'SAND',       col:'#c4a35a',  tag:'ρ5'},
   {cat:null,      key:'clay',    label:'CLAY',       col:'#7a8599',  tag:'ρ5'},
   {cat:null,      key:'stone',   label:'STONE',      col:'#787878',  tag:'ρ7'},
@@ -3645,7 +4147,7 @@ function resetSim(){
   document.getElementById('klist').innerHTML='';
   fridgeZones=[];
   heldMutagen=null;
-  for(const t of [T.PLANT,T.ANT,T.QUEEN,T.SPIDER,T.FUNGI,T.MITE,T.QUEEN_SPIDER,T.QUEEN_MITE]) POP_HISTORY[t]=[];
+  for(const t of [T.PLANT,T.ANT,T.TERMITE,T.QUEEN,T.QUEEN_TERMITE,T.SPIDER,T.FUNGI,T.MITE,T.QUEEN_SPIDER,T.QUEEN_MITE]) POP_HISTORY[t]=[];
   for(const id of customCreatures.keys()){POP[id]=0;POP[id+100]=0;}
   exitObserveMode();
   document.getElementById('held-panel').style.display='none';
@@ -4081,6 +4583,11 @@ function closeDocs(){ document.getElementById('docs-overlay').classList.remove('
 document.getElementById('docs-overlay').addEventListener('click',e=>{
   if(e.target===document.getElementById('docs-overlay'))closeDocs();
 });
+function openGuide(){ document.getElementById('guide-overlay').style.display='flex'; }
+function closeGuide(){ document.getElementById('guide-overlay').style.display='none'; }
+document.getElementById('guide-overlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('guide-overlay'))closeGuide();
+});
 
 // ================================================================
 //  EVENT TOAST
@@ -4216,6 +4723,8 @@ function generateInteractions(c){
 
 const KINGDOM_TARGETS=[
   {id:'ant',   label:'ANT',   icon:'🐜', type:T.ANT},
+  {id:'termite',label:'TERMITE',icon:'🪲', type:T.TERMITE},
+  {id:'qtermite',label:'Q.TERMITE',icon:'🪲👑', type:T.QUEEN_TERMITE},
   {id:'queen', label:'QUEEN ANT', icon:'👑', type:T.QUEEN},
   {id:'spider',label:'SPIDER',icon:'🕷️', type:T.SPIDER},
   {id:'qspider',label:'Q.SPIDER',icon:'🕸️', type:T.QUEEN_SPIDER},
@@ -4784,6 +5293,8 @@ function stepCustom(x,y,p){
   const def=customCreatures.get(p.customType);
   if(!def){grid[idx(x,y)]=null;return;}
   p.age++;
+  processBuff(p);
+  if(p.buff?.type==='chromadust'&&Math.random()<0.3){const jx=x+Math.floor((Math.random()-0.5)*6),jy=y+Math.floor((Math.random()-0.5)*6);if(inB(jx,jy)&&!get(jx,jy)){swap(x,y,jx,jy);return;}}
   const arch=def.archetype||'creature';
   const eb=def.elemBehaviors||{};
 
