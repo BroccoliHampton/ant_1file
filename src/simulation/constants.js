@@ -70,7 +70,7 @@ export const ELEMENTS = [
   {cat:'terrain', key:'sand',     label:'SAND',      col:'#c4a35a', tag:'ρ5'},
   {cat:'terrain', key:'clay',     label:'CLAY',      col:'#7a8599', tag:'ρ5'},
   {cat:'terrain', key:'stone',    label:'STONE',     col:'#787878', tag:'ρ7'},
-  {cat:'terrain', key:'wood',     label:'WOOD',      col:'#6e4020', tag:'ρ4'},
+  {cat:'life', key:'wood',     label:'WOOD',      col:'#6e4020', tag:'🪵'},
   {cat:'terrain', key:'ice',      label:'ICE',       col:'#b4e0f0', tag:'ρ3'},
   {cat:'terrain', key:'goldSand', label:'GOLD SAND', col:'#ffc800', tag:'ρ8'},
   {cat:'terrain', key:'whiteSand',label:'WHT SAND',  col:'#dcdcd7', tag:'ρ3'},

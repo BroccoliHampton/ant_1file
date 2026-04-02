@@ -935,10 +935,13 @@ function stepQueenTermite(x,y,p){
 
   const spawnRate=22+Math.floor((1-p.g[5]/255)*70);
   if(p.age%spawnRate===0&&POP[T.TERMITE]<POP_MAX[T.TERMITE]){
-    const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
+    // Allow empty OR wood cells — queens live inside wood structures
+    const nbrs=getNeighbors(x,y).filter(([nx,ny])=>{const c=get(nx,ny);return !c||c.t===T.WOOD;});
     if(nbrs.length){
       const[nx,ny]=nbrs[Math.floor(Math.random()*nbrs.length)];
+      const woodUnder=get(nx,ny);
       const spawned=spawnWithSpeciation(T.TERMITE,p.g,p.sid,p.variant,{energy:120});
+      if(woodUnder?.t===T.WOOD)spawned.under=woodUnder; // worker spawns inside wood, carries underlay
       set(nx,ny,spawned);popIncr(spawned);
     }
   }
