@@ -1,8 +1,8 @@
 import { ELEMENTS } from '../../simulation/constants.js'
 
 const MOBILE_CATS = {
-  terrain: ['sand','clay','stone','wood','ice','goldSand','whiteSand','salt','water','acid','oil','ash','smoke','steam','gunpowder','wall','fire','lava'],
-  life:    ['ant','queen','spider','queenSpider','termite','queenTermite','mite','queenMite','plant','seed','algae','detritus','fungi','spore'],
+  terrain: ['sand','clay','stone','ice','goldSand','whiteSand','salt','water','acid','oil','ash','smoke','steam','gunpowder','wall','fire','lava'],
+  life:    ['wood','ant','queen','spider','queenSpider','termite','queenTermite','mite','queenMite','plant','seed','algae','detritus','fungi','spore'],
   special: ['mutagen','cloud','bloomCloud','progCloud','progVoid'],
   rx:      ['stimulant','chromadust','nectar','venomBrew','pheromone','calcifier','sporeBomb','gigantism'],
 }

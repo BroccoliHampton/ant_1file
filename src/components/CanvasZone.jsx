@@ -17,7 +17,17 @@ export default function CanvasZone() {
     const engine = createEngine(canvas, (state) => {
       setSimState(state)
     })
-    setEngine(engine)  // ← register in store so Toolbar/MenuDrawer can reach it
+
+    // Sync current store state → engine on every mount/remount.
+    // Needed because engine.js module-level vars (currentEl etc.) reset on
+    // HMR hot-reloads and React StrictMode double-mounts.
+    const { activeElement, activeTool, brushSize, speedMult } = useSimStore.getState()
+    engine.setElement(activeElement)
+    engine.setTool(activeTool)
+    engine.setBrushSize(brushSize)
+    engine.setSpeed(speedMult)
+
+    setEngine(engine)
     engine.start()
 
     // Contain-fit canvas into zone on both axes — absolute-centered via CSS
