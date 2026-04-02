@@ -796,17 +796,21 @@ function stepTermite(x,y,p){
   if(p.buff?.type==='chromadust'&&Math.random()<0.3){const jx=x+Math.floor((Math.random()-0.5)*6),jy=y+Math.floor((Math.random()-0.5)*6);if(inB(jx,jy)&&!get(jx,jy)){swap(x,y,jx,jy);return;}}
   const tvt=p.variant?.traits||[];
   const speed=p.g[1]/255,appetite=p.g[2]/255,aggression=p.g[3]/255;
-  const woodConsumeChance=tvt.includes('fast_eat_wood')?0.36:0.12; // mostly traverse wood, sometimes eat it
+  const woodConsumeChance=tvt.includes('fast_eat_wood')?0.40:0.18; // mostly traverse wood, sometimes eat it
   if(p.qcd>0)p.qcd--;
   // Like ants' tryDropQueenFromPlantEat but for wood — uses cooldown instead of radius scan
   function tryDropQueenTermiteFromWoodEat(atX,atY){
     if(p.qcd>0)return false;
     if(POP[T.QUEEN_TERMITE]>=POP_MAX[T.QUEEN_TERMITE])return false;
     if(p.energy<130)return false;
-    const spawnCells=getNeighbors(atX,atY).filter(([nx,ny])=>!get(nx,ny));
+    // Allow empty cells OR wood cells as spawn targets (termites live inside wood)
+    const spawnCells=getNeighbors(atX,atY).filter(([nx,ny])=>{const c=get(nx,ny);return !c||c.t===T.WOOD;});
     if(!spawnCells.length)return false;
     const[qx,qy]=spawnCells[Math.floor(Math.random()*spawnCells.length)];
-    const q=spawnWithSpeciation(T.QUEEN_TERMITE,p.g,p.sid,p.variant,{energy:180});
+    const prev=get(qx,qy);if(prev?.t===T.WOOD)grid[idx(qx,qy)]=null; // displace wood (like ant displaces plant)
+    const ng=mutateGenome(p.g,mutRate);
+    const q=agentWithStrain(T.QUEEN_TERMITE,ng,p.sid,{energy:180});
+    if(p.variant)q.variant=p.variant;
     grid[idx(qx,qy)]=q;popIncr(q);
     p.energy=Math.max(0,p.energy-80);p.qcd=80;
     return true;
