@@ -232,6 +232,11 @@ const VARIANT_POOL={
     {name:'Deep-Root',traits:['deep_root'],hueShift:180,desc:'Grows downward into sand and clay'},
   ],
 };
+// Maps worker type → queen type for speciation promotions
+const WORKER_QUEEN_MAP={
+  [T.ANT]:T.QUEEN,[T.TERMITE]:T.QUEEN_TERMITE,
+  [T.SPIDER]:T.QUEEN_SPIDER,[T.MITE]:T.QUEEN_MITE,
+};
 function trySpeciate(type,parentGenome,parentVariant){
   // Existing variant: inherit or revert
   if(parentVariant){return Math.random()<VARIANT_INHERIT?{...parentVariant}:null;}
@@ -254,13 +259,16 @@ function spawnWithSpeciation(type,parentGenome,parentSid,parentVariant,extra={})
   const ng=mutateGenome(parentGenome,mutRate);
   const variant=trySpeciate(type,ng,parentVariant);
   const finalGenome=variant?.genome||ng;
-  const a=agentWithStrain(type,finalGenome,parentSid,extra);
+  // Brand-new species → spawn as a queen so the colony can establish itself
+  const isNewSpecies=variant&&!parentVariant;
+  const spawnType=isNewSpecies&&WORKER_QUEEN_MAP[type]?WORKER_QUEEN_MAP[type]:type;
+  const a=agentWithStrain(spawnType,finalGenome,parentSid,{energy:180,...extra});
   if(variant)a.variant=variant;
   // HP modifiers for variant traits
   if(variant?.traits?.includes('tank'))a.hp=Math.min(255,a.hp*2);
   if(variant?.traits?.includes('fast')||variant?.traits?.includes('swarmer')||variant?.traits?.includes('fast_repro'))a.hp=Math.floor(a.hp*0.5);
   // Announce NEW speciation (not inherited)
-  if(variant&&!parentVariant)showEventToast('\u{1F9EC} NEW SPECIES',`${variant.name} ${K_NAMES[type]||'creature'} evolved \u2014 ${variant.desc}`);
+  if(isNewSpecies)showEventToast('\u{1F9EC} NEW SPECIES',`${variant.name} ${K_NAMES[type]||'creature'} evolved \u2014 ${variant.desc}`);
   return a;
 }
 
@@ -789,6 +797,20 @@ function stepTermite(x,y,p){
   const tvt=p.variant?.traits||[];
   const speed=p.g[1]/255,appetite=p.g[2]/255,aggression=p.g[3]/255;
   const woodConsumeChance=tvt.includes('fast_eat_wood')?0.36:0.12; // mostly traverse wood, sometimes eat it
+  if(p.qcd>0)p.qcd--;
+  // Like ants' tryDropQueenFromPlantEat but for wood — uses cooldown instead of radius scan
+  function tryDropQueenTermiteFromWoodEat(atX,atY){
+    if(p.qcd>0)return false;
+    if(POP[T.QUEEN_TERMITE]>=POP_MAX[T.QUEEN_TERMITE])return false;
+    if(p.energy<130)return false;
+    const spawnCells=getNeighbors(atX,atY).filter(([nx,ny])=>!get(nx,ny));
+    if(!spawnCells.length)return false;
+    const[qx,qy]=spawnCells[Math.floor(Math.random()*spawnCells.length)];
+    const q=spawnWithSpeciation(T.QUEEN_TERMITE,p.g,p.sid,p.variant,{energy:180});
+    grid[idx(qx,qy)]=q;popIncr(q);
+    p.energy=Math.max(0,p.energy-80);p.qcd=80;
+    return true;
+  }
   p.energy-=0.10+speed*0.10;
   if(p.hp<=0||p.energy<=0){
     if(p.under?.t===T.WOOD){set(x,y,p.under);p.under=null;}
@@ -868,13 +890,7 @@ function stepTermite(x,y,p){
           // Traverse or consume wood (like ant + plant)
           if(Math.random()<woodConsumeChance){
             p.energy+=20;moveTermiteTo(mx,my,{consumeWood:true});
-            // Wood meal — chance to drop a queen (like ants after eating plants)
-            if(p.energy>=160&&Math.random()<0.05&&POP[T.QUEEN_TERMITE]<POP_MAX[T.QUEEN_TERMITE]){
-              let qNear2=false;for(let dy2=-20;dy2<=20&&!qNear2;dy2++)for(let dx2=-20;dx2<=20&&!qNear2;dx2++){if(get(mx+dx2,my+dy2)?.t===T.QUEEN_TERMITE)qNear2=true;}
-              if(!qNear2){const qSpot=getNeighbors(mx,my).filter(([qx,qy])=>!get(qx,qy));
-                if(qSpot.length){const[qx,qy]=qSpot[Math.floor(Math.random()*qSpot.length)];const ng=mutateGenome(p.g,mutRate);
-                  grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_TERMITE,ng,p.sid,{energy:180});popIncr({t:T.QUEEN_TERMITE,sid:p.sid});p.energy-=80;}}
-            }
+            tryDropQueenTermiteFromWoodEat(mx,my);
           } else{moveTermiteTo(mx,my,{consumeWood:false});}
         } else {
           if(dest?.t===T.DETRITUS)grid[idx(mx,my)]=null;
@@ -898,15 +914,6 @@ function stepTermite(x,y,p){
     for(const[nx,ny] of nbrs){const np=get(nx,ny);
       if(np?.t===T.QUEEN_TERMITE&&p.energy>80){np.energy=Math.min(255,np.energy+20);p.energy-=15;break;}}
   }
-  // Queen drop — well-fed termites after eating wood can spawn a queen
-  if(p.energy>=200&&POP[T.QUEEN_TERMITE]<POP_MAX[T.QUEEN_TERMITE]){
-    let qNear=false;for(let dy=-20;dy<=20&&!qNear;dy++)for(let dx=-20;dx<=20&&!qNear;dx++){if(get(x+dx,y+dy)?.t===T.QUEEN_TERMITE)qNear=true;}
-    if(!qNear&&Math.random()<0.008){
-      const sc=nbrs.filter(([nx,ny])=>!get(nx,ny));
-      if(sc.length){const[qx,qy]=sc[Math.floor(Math.random()*sc.length)];const ng=mutateGenome(p.g,mutRate);
-        grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_TERMITE,ng,p.sid,{energy:180});popIncr({t:T.QUEEN_TERMITE,sid:p.sid});p.energy-=100;}
-    }
-  }
 }
 
 // ================================================================
@@ -927,8 +934,8 @@ function stepQueenTermite(x,y,p){
     const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
     if(nbrs.length){
       const[nx,ny]=nbrs[Math.floor(Math.random()*nbrs.length)];
-      set(nx,ny,spawnWithSpeciation(T.TERMITE,p.g,p.sid,p.variant,{energy:120}));
-      popIncr({t:T.TERMITE,sid:p.sid});
+      const spawned=spawnWithSpeciation(T.TERMITE,p.g,p.sid,p.variant,{energy:120});
+      set(nx,ny,spawned);popIncr(spawned);
     }
   }
 }
@@ -949,7 +956,7 @@ function stepQueen(x,y,p){
   const spawnRate=20+Math.floor((1-p.g[5]/255)*80);
   if(p.age%spawnRate===0&&POP[T.ANT]<POP_MAX[T.ANT]){
     const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
-    if(nbrs.length){const[nx,ny]=nbrs[Math.floor(Math.random()*nbrs.length)];set(nx,ny,spawnWithSpeciation(T.ANT,p.g,p.sid,p.variant,{energy:120}));popIncr({t:T.ANT,sid:p.sid});}
+    if(nbrs.length){const[nx,ny]=nbrs[Math.floor(Math.random()*nbrs.length)];const spawned=spawnWithSpeciation(T.ANT,p.g,p.sid,p.variant,{energy:120});set(nx,ny,spawned);popIncr(spawned);}
   }
   if(p.age%100===0&&Math.random()<0.4){
     const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
