@@ -20,7 +20,7 @@ export default function CanvasZone() {
     setEngine(engine)  // ← register in store so Toolbar/MenuDrawer can reach it
     engine.start()
 
-    // Auto-scale canvas-wrap to fill zone (contain fit, both axes, allows upscaling)
+    // Contain-fit canvas into zone on both axes — absolute-centered via CSS
     const zone = zoneRef.current
     const wrap = canvas.parentElement
     function fitCanvas() {
@@ -30,8 +30,8 @@ export default function CanvasZone() {
       const scaleX = zW / (W * S)
       const scaleY = zH / (H * S)
       const scale  = Math.min(scaleX, scaleY)
-      wrap.style.transformOrigin = 'center center'
-      wrap.style.transform = `scale(${scale})`
+      // translate(-50%,-50%) centers the abs-positioned wrap, then scale
+      wrap.style.transform = `translate(-50%, -50%) scale(${scale})`
     }
     const observer = new ResizeObserver(fitCanvas)
     observer.observe(zone)
