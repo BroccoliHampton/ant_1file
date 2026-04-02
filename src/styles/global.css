@@ -95,6 +95,12 @@ body {
   font-size: 11px;
 }
 
+/* React mount point must fill body */
+#root {
+  width: 100%;
+  height: 100%;
+}
+
 /* ─── PHONE HARDWARE CHROME ─── */
 #phone {
   width: 100%;
