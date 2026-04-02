@@ -20,14 +20,17 @@ export default function CanvasZone() {
     setEngine(engine)  // ← register in store so Toolbar/MenuDrawer can reach it
     engine.start()
 
-    // Auto-scale canvas-wrap to fit zone width
+    // Auto-scale canvas-wrap to fill zone (contain fit, both axes, allows upscaling)
     const zone = zoneRef.current
     const wrap = canvas.parentElement
     function fitCanvas() {
       const zW = zone.clientWidth
-      if (!zW) return
-      const scale = Math.min(zW / (W * S), 1)
-      wrap.style.transformOrigin = 'center bottom'
+      const zH = zone.clientHeight
+      if (!zW || !zH) return
+      const scaleX = zW / (W * S)
+      const scaleY = zH / (H * S)
+      const scale  = Math.min(scaleX, scaleY)
+      wrap.style.transformOrigin = 'center center'
       wrap.style.transform = `scale(${scale})`
     }
     const observer = new ResizeObserver(fitCanvas)
