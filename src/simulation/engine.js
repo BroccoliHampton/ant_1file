@@ -328,6 +328,17 @@ let lastPopSample=0;
 let currentTool='draw',currentEl='sand',brushSize=3,isDown=false,speedMult=1;
 
 // ================================================================
+//  MACHINE (CONWAY'S GAME OF LIFE) STATE
+// ================================================================
+let machineRunning=false;          // GoL simulation is active
+let machineGeneration=0;           // current generation count
+let machineBestGen=0;              // all-time best run (persisted)
+let lastMachinePlacedTick=-999;    // tick when user last placed a machine cell
+const MACHINE_WAKE_DELAY=20;       // sim-ticks after last placement before GoL starts
+const MACHINE_TICK_RATE=8;         // sim-ticks per GoL generation
+try{machineBestGen=parseInt(localStorage.getItem('ant1_machineBest')||'0');}catch(e){}
+
+// ================================================================
 //  HELPERS
 // ================================================================
 const idx=(x,y)=>y*W+x;
@@ -2100,6 +2111,9 @@ function stepParticle(x,y){
   if(p.t===T.CALCIFIER){stepCalcifier(x,y,p);return;}
   if(p.t===T.SPORE_BOMB){stepSporeBomb(x,y,p);return;}
   if(p.t===T.GIGANTISM){stepGigantism(x,y,p);return;}
+  // Machine cells: MACHINE is static (stepped by GoL tick); MACHINE_DEAD decays
+  if(p.t===T.MACHINE)return;
+  if(p.t===T.MACHINE_DEAD){stepMachineDead(x,y,p);return;}
 
   // Plant wall — biological, needs its own step (decay, detritus)
 
@@ -2405,7 +2419,111 @@ function getColor(p,x,y){
         [r,g,b]=hslToRgb(hue,sat,glit);
       } else {r=g=b=80;}
   }
+  // Machine cells rendered here (no p.g, so fall-through above would give grey)
+  if(p.t===T.MACHINE){
+    if(p.dormant){r=50;g=70;b=90;}  // dim steel-blue while waiting to activate
+    else{const fl=Math.random();if(fl<0.12){r=255;g=255;b=255;}else{r=0;g=200+(lv*30)|0;b=230;}}
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  if(p.t===T.MACHINE_DEAD){
+    const fade=Math.max(0,1-(p.age/5));
+    r=Math.floor(220*fade);g=Math.floor(20*fade);b=Math.floor(20*fade);
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
   return 0xFF000000|(b<<16)|(g<<8)|r;
+}
+
+// ================================================================
+//  MACHINE — GoL logic
+// ================================================================
+function stepMachineDead(x,y,p){
+  // Dead-cell flash: cleared after a few ticks (age already incremented by stepParticle)
+  if(p.age>=5)grid[idx(x,y)]=null;
+}
+
+function endMachineRun(){
+  if(!machineRunning)return;
+  machineRunning=false;
+  const gen=machineGeneration;
+  // Clean up lingering MACHINE_DEAD cells
+  for(let i=0;i<W*H;i++){if(grid[i]?.t===T.MACHINE_DEAD)grid[i]=null;}
+  if(gen>machineBestGen){
+    machineBestGen=gen;
+    try{localStorage.setItem('ant1_machineBest',String(machineBestGen));}catch(e){}
+    showEventToast('⚙ NEW MACHINE RECORD',`${gen} generations — new best!`);
+  } else {
+    showEventToast('⚙ MACHINE HALTED',`Run ended at gen ${gen} · Best: ${machineBestGen}`);
+  }
+  lastMachinePlacedTick=-999;
+}
+
+function stepMachineGoL(){
+  // --- Snapshot live cells ---
+  const liveCells=[];
+  for(let i=0;i<W*H;i++){if(grid[i]?.t===T.MACHINE)liveCells.push(i);}
+  if(liveCells.length===0){endMachineRun();return;}
+  machineGeneration++;
+
+  // --- Build candidate set: live cells + all their neighbors ---
+  const toEval=new Set(liveCells);
+  for(const i of liveCells){
+    const x=i%W,y=Math.floor(i/W);
+    for(const[nx,ny] of getNeighbors(x,y))toEval.add(idx(nx,ny));
+  }
+
+  const deaths=[],births=[];
+  for(const i of toEval){
+    const x=i%W,y=Math.floor(i/W);
+    const cell=grid[i];
+    const isAlive=cell?.t===T.MACHINE;
+    let liveN=0,hazard=false;
+    for(const[nx,ny] of getNeighbors(x,y)){
+      const n=grid[idx(nx,ny)];
+      if(!n)continue;
+      if(n.t===T.MACHINE)                                                  liveN++;
+      else if(n.t===T.WALL||n.t===T.STONE||n.t===T.CLAY_HARD
+              ||n.t===T.FRIDGE_WALL||n.t===T.WOOD)                        liveN++; // solid structures count as live
+      else if(n.t===T.WATER||n.t===T.STEAM||n.t===T.ICE)                  hazard=true;
+      else if(n.t===T.FIRE||n.t===T.LAVA||n.t===T.BLOOM_FIRE)             hazard=true;
+      else if(n.t===T.ACID)                                                hazard=true;
+    }
+    if(isAlive){
+      if(hazard||liveN<2||liveN>3)deaths.push(i);
+    } else {
+      if(liveN===3&&!hazard){
+        // Birth: empty, soft abiotic, or biological life (gets absorbed)
+        if(!cell||cell.t===T.SAND||cell.t===T.GOLD_SAND||cell.t===T.WHITE_SAND
+            ||cell.t===T.DETRITUS||cell.t===T.ASH||cell.t===T.CLAY
+            ||cell.t===T.GUNPOWDER||cell.t===T.SALT||cell?.g)
+          births.push([i,cell]);
+      }
+    }
+  }
+
+  // Apply deaths first
+  for(const i of deaths){
+    if(grid[i]?.t===T.MACHINE)grid[i]={t:T.MACHINE_DEAD,age:0};
+  }
+  // Apply births
+  for(const[i,prev] of births){
+    if(grid[i]?.t===T.MACHINE)continue; // collision — already alive
+    if(prev?.g)popDecr(prev);           // absorb creature
+    grid[i]={t:T.MACHINE,age:0};
+  }
+  // Fungi infection: machines adjacent to dense fungi have a small chance to die
+  for(const i of liveCells){
+    if(grid[i]?.t!==T.MACHINE)continue;
+    const x=i%W,y=Math.floor(i/W);
+    for(const[nx,ny] of getNeighbors(x,y)){
+      if(grid[idx(nx,ny)]?.t===T.FUNGI&&Math.random()<0.015){
+        grid[i]=null; break;
+      }
+    }
+  }
+  // Check if any machines remain
+  let anyAlive=false;
+  for(let i=0;i<W*H;i++){if(grid[i]?.t===T.MACHINE){anyAlive=true;break;}}
+  if(!anyAlive)endMachineRun();
 }
 
 // ================================================================
@@ -2488,6 +2606,20 @@ function simStep(){
     for(const[id,s]of strainRegistry){s.pop=0;}
     for(const p of grid){if(p?.sid){const s=strainRegistry.get(p.sid);if(s){s.pop++;s.peak=Math.max(s.peak,s.pop);}}}
   }
+
+  // --- Machine (GoL) ---
+  // Countdown: if user placed machines recently, wait MACHINE_WAKE_DELAY ticks then activate
+  if(lastMachinePlacedTick>=0&&!machineRunning){
+    if(tickCount-lastMachinePlacedTick>=MACHINE_WAKE_DELAY){
+      let hasMachines=false;
+      for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE){hasMachines=true;break;}}
+      if(hasMachines){
+        machineRunning=true;machineGeneration=0;lastMachinePlacedTick=-999;
+        showEventToast('⚙ MACHINE ACTIVATED','Conway\'s Game of Life — tick!');
+      } else {lastMachinePlacedTick=-999;}
+    }
+  }
+  if(machineRunning&&tickCount%MACHINE_TICK_RATE===0)stepMachineGoL();
 
   tickCount++;
 }
@@ -2917,6 +3049,17 @@ function drawAt(cx,cy){
         case 'fungi':{const g=randomGenome(T.FUNGI);const s=registerStrain(T.FUNGI,g);grid[idx(px,py)]=agentWithStrain(T.FUNGI,g,s,{energy:100});POP[T.FUNGI]++;break;}
         case 'mite':{const g=randomGenome(T.MITE);const s=registerStrain(T.MITE,g);grid[idx(px,py)]=agentWithStrain(T.MITE,g,s,{energy:120});POP[T.MITE]++;break;}
         case 'queenMite':{const g=randomGenome(T.QUEEN_MITE);const s=registerStrain(T.QUEEN_MITE,g);grid[idx(px,py)]=agentWithStrain(T.QUEEN_MITE,g,s,{energy:180});POP[T.QUEEN_MITE]++;break;}
+        case 'machine':{
+          // Placing new machine cells resets any active run back to countdown
+          if(machineRunning){
+            machineRunning=false;machineGeneration=0;
+            for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE)grid[mi].dormant=true;}
+          }
+          const existing=grid[idx(px,py)];if(existing?.g)popDecr(existing);
+          grid[idx(px,py)]={t:T.MACHINE,age:0,dormant:true};
+          lastMachinePlacedTick=tickCount;
+          break;
+        }
         default:{
           // Custom lab creatures
           if(currentEl.startsWith('customqueen_')){
@@ -5036,11 +5179,18 @@ export function createEngine(canvasEl, stateCallback) {
     }
     render();
     if (_stateCallback && uiFrame % 8 === 0) {
+      const machineCountdown = (!machineRunning && lastMachinePlacedTick >= 0)
+        ? Math.max(0, MACHINE_WAKE_DELAY - (tickCount - lastMachinePlacedTick))
+        : null;
       _stateCallback({
         tick: tickCount,
         era: getEra(),
         narrator: NARRATOR_LINES.length > 0 ? NARRATOR_LINES[0].text : '',
         populations: { ...POP },
+        machineGen: machineGeneration,
+        machineBest: machineBestGen,
+        machineRunning,
+        machineCountdown,
       });
     }
     uiFrame++;

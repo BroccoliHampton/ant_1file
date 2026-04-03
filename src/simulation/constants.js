@@ -34,6 +34,9 @@ export const T = {
   // Additional creatures from phone version
   TERMITE:60,
   QUEEN_TERMITE:61,
+  // Conway's Game of Life machines
+  MACHINE:70,
+  MACHINE_DEAD:71,
   // Custom lab creatures start here
   CUSTOM_BASE:100,
 };
@@ -100,6 +103,8 @@ export const ELEMENTS = [
   {cat:'life', key:'detritus',    label:'DETRITUS',     col:'#806545', tag:'🍂'},
   {cat:'life', key:'fungi',       label:'FUNGI',        col:'#8c32c8', tag:'🍄'},
   {cat:'life', key:'spore',       label:'SPORE',        col:'#a050dc', tag:'✦'},
+  // machine (conway's game of life)
+  {cat:'special', key:'machine',    label:'MACHINE',     col:'#00e5ff', tag:'⚙'},
   // special
   {cat:'special', key:'mutagen',    label:'LIFE SEED',   col:'#cc00ee', tag:'⚛'},
   {cat:'special', key:'cloud',      label:'CLOUD',       col:'#aaccee', tag:'☁'},

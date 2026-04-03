@@ -7,6 +7,10 @@ export const useSimStore = create((set, get) => ({
   narrator: '',
   populations: {},
   ecosystemStats: {},
+  machineGen: 0,
+  machineBest: 0,
+  machineRunning: false,
+  machineCountdown: null,
   setState: (updates) => set(updates),
 
   // Engine reference — set once by CanvasZone on mount
