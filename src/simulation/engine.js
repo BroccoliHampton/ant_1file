@@ -335,7 +335,9 @@ let machineGeneration=0;           // current generation count
 let machineBestGen=0;              // all-time best run (persisted)
 let lastMachinePlacedTick=-999;    // tick when user last placed a machine cell
 const MACHINE_WAKE_DELAY=20;       // sim-ticks after last placement before GoL starts
-const MACHINE_TICK_RATE=8;         // sim-ticks per GoL generation
+const MACHINE_TICK_RATE=24;        // sim-ticks per GoL generation (slower = more watchable)
+const MACHINE_UNIVERSE_PAD=12;     // cells of padding beyond the painted bbox for the GoL universe
+let machineUniX0=0,machineUniY0=0,machineUniX1=W-1,machineUniY1=H-1; // universe bounds (set at activation)
 try{machineBestGen=parseInt(localStorage.getItem('ant1_machineBest')||'0');}catch(e){}
 
 // ================================================================
@@ -2455,6 +2457,7 @@ function endMachineRun(){
     showEventToast('⚙ MACHINE HALTED',`Run ended at gen ${gen} · Best: ${machineBestGen}`);
   }
   lastMachinePlacedTick=-999;
+  machineUniX0=0;machineUniY0=0;machineUniX1=W-1;machineUniY1=H-1;
 }
 
 function stepMachineGoL(){
@@ -2491,10 +2494,11 @@ function stepMachineGoL(){
       if(hazard||liveN<2||liveN>3)deaths.push(i);
     } else {
       if(liveN===3&&!hazard){
-        // Birth: empty, soft abiotic, or biological life (gets absorbed)
-        if(!cell||cell.t===T.SAND||cell.t===T.GOLD_SAND||cell.t===T.WHITE_SAND
+        // Birth into empty space or soft matter — but only within the GoL universe (set at activation)
+        const inUni=x>=machineUniX0&&x<=machineUniX1&&y>=machineUniY0&&y<=machineUniY1;
+        if(inUni&&(!cell||cell.t===T.SAND||cell.t===T.GOLD_SAND||cell.t===T.WHITE_SAND
             ||cell.t===T.DETRITUS||cell.t===T.ASH||cell.t===T.CLAY
-            ||cell.t===T.GUNPOWDER||cell.t===T.SALT||cell?.g)
+            ||cell.t===T.GUNPOWDER||cell.t===T.SALT||cell?.g))
           births.push([i,cell]);
       }
     }
@@ -2615,6 +2619,13 @@ function simStep(){
       for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE){hasMachines=true;break;}}
       if(hasMachines){
         machineRunning=true;machineGeneration=0;lastMachinePlacedTick=-999;
+        // Compute the bounding box of all placed cells and set the GoL universe with padding
+        let x0=W,y0=H,x1=0,y1=0;
+        for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE){const mx=mi%W,my=Math.floor(mi/W);x0=Math.min(x0,mx);y0=Math.min(y0,my);x1=Math.max(x1,mx);y1=Math.max(y1,my);}}
+        machineUniX0=Math.max(0,x0-MACHINE_UNIVERSE_PAD);
+        machineUniY0=Math.max(0,y0-MACHINE_UNIVERSE_PAD);
+        machineUniX1=Math.min(W-1,x1+MACHINE_UNIVERSE_PAD);
+        machineUniY1=Math.min(H-1,y1+MACHINE_UNIVERSE_PAD);
         showEventToast('⚙ MACHINE ACTIVATED','Conway\'s Game of Life — tick!');
       } else {lastMachinePlacedTick=-999;}
     }
@@ -3050,6 +3061,8 @@ function drawAt(cx,cy){
         case 'mite':{const g=randomGenome(T.MITE);const s=registerStrain(T.MITE,g);grid[idx(px,py)]=agentWithStrain(T.MITE,g,s,{energy:120});POP[T.MITE]++;break;}
         case 'queenMite':{const g=randomGenome(T.QUEEN_MITE);const s=registerStrain(T.QUEEN_MITE,g);grid[idx(px,py)]=agentWithStrain(T.QUEEN_MITE,g,s,{energy:180});POP[T.QUEEN_MITE]++;break;}
         case 'machine':{
+          // Sparse placement: ~35% density so initial state is a natural GoL seed, not a solid mass
+          if(Math.random()>0.35)break;
           // Placing new machine cells resets any active run back to countdown
           if(machineRunning){
             machineRunning=false;machineGeneration=0;
