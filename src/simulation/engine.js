@@ -3061,8 +3061,8 @@ function drawAt(cx,cy){
         case 'mite':{const g=randomGenome(T.MITE);const s=registerStrain(T.MITE,g);grid[idx(px,py)]=agentWithStrain(T.MITE,g,s,{energy:120});POP[T.MITE]++;break;}
         case 'queenMite':{const g=randomGenome(T.QUEEN_MITE);const s=registerStrain(T.QUEEN_MITE,g);grid[idx(px,py)]=agentWithStrain(T.QUEEN_MITE,g,s,{energy:180});POP[T.QUEEN_MITE]++;break;}
         case 'machine':{
-          // Sparse placement: ~35% density so initial state is a natural GoL seed, not a solid mass
-          if(Math.random()>0.35)break;
+          // Always 1-pixel brush — skip any cell that isn't the exact cursor position
+          if(dx!==0||dy!==0)break;
           // Placing new machine cells resets any active run back to countdown
           if(machineRunning){
             machineRunning=false;machineGeneration=0;
