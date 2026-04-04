@@ -196,6 +196,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 /* Home indicator */
@@ -346,6 +347,23 @@ body {
   align-items: center;
   font-size: 9px;
   color: var(--dim);
+}
+.gol-play-btn {
+  background: #00e5ff22;
+  border: 1px solid #00e5ff88;
+  color: #00e5ff;
+  font-size: 9px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+}
+.gol-play-btn:active { opacity: 0.7; }
+.gol-stop-btn {
+  background: #ff444422;
+  border-color: #ff444488;
+  color: #ff6666;
 }
 
 /* ─── CANVAS ZONE ─── */
@@ -586,25 +604,59 @@ canvas { display: block; }
   letter-spacing: 0;
 }
 
+/* ─── LAB POPUP ─── */
+#lab-popup {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,0.75);
+  align-items: center;
+  justify-content: center;
+}
+#lab-popup.open { display: flex; }
+#lab-panel {
+  background: var(--menu-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: 12px;
+  width: min(360px, 92vw);
+  height: min(88vh, 560px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#lab-panel { padding: 10px; }
+#lab-panel > button#lab-close { align-self: flex-end; margin: 0 0 4px auto; display: block; }
+#lab-left, #lab-right { padding: 4px; overflow-y: auto; }
+.lab-lbl { font-size: 7px; color: var(--dim); letter-spacing: 0.08em; margin-top: 2px; }
+.lab-toggle { font-size: 7px; padding: 2px 5px; margin: 1px; border-radius: 3px; cursor: pointer; border: 1px solid var(--btn-border); display: inline-block; }
+.lab-toggle.active-prey  { background: #ff444430; border-color: #ff4444; color: #ff8888; }
+.lab-toggle.active-ally  { background: #44ff4430; border-color: #44ff44; color: #88ff88; }
+.lab-toggle.active-special { background: #4488ff30; border-color: #4488ff; color: #88aaff; }
+.lab-toggle.active-tol   { background: #ffcc0030; border-color: #ffcc00; color: #ffdd66; }
+.lab-toggle-list { display: flex; flex-wrap: wrap; gap: 2px; }
+.lab-btn-row button { background: var(--btn-bg); border: 1px solid var(--btn-border); color: var(--fg); font-family: var(--mono); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 8px; }
+.lab-btn-row button.primary { background: var(--accent); color: #000; border-color: var(--accent); }
+
 /* ─── MENU DRAWER ─── */
 #menu-drawer {
-  position: fixed;
+  position: absolute;
   bottom: 0;
-  left: 50%;
-  width: var(--phone-w);
+  left: 0;
+  right: 0;
   z-index: 150;
   background: var(--menu-bg);
   border-top: 2px solid var(--accent);
   border-radius: 16px 16px 0 0;
-  transform: translateX(-50%) translateY(100%);
+  transform: translateY(100%);
   transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-  max-height: 80vh;
+  max-height: 80%;
   display: flex;
   flex-direction: column;
 }
 
 #menu-drawer.open {
-  transform: translateX(-50%) translateY(0);
+  transform: translateY(0);
 }
 
 #menu-drawer-inner {

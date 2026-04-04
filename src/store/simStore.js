@@ -11,6 +11,15 @@ export const useSimStore = create((set, get) => ({
   machineBest: 0,
   machineRunning: false,
   machineCountdown: null,
+  hasMachineCells: false,
+  menuOpen: false,
+  setMenuOpen: (val) => set({ menuOpen: val }),
+  startGoL:  () => get().engine?.startGoL(),
+  stopGoL:   () => get().engine?.stopGoL(),
+  reset:     () => get().engine?.reset(),
+  seed:      () => get().engine?.seed(),
+  randomMap: () => get().engine?.randomMap(),
+  openLab:   () => get().engine?.openLab(),
   setState: (updates) => set(updates),
 
   // Engine reference — set once by CanvasZone on mount
@@ -28,6 +37,13 @@ export const useSimStore = create((set, get) => ({
     set({ activeElement: key, activeTool: 'draw' })
     get().engine?.setElement(key)
     get().engine?.setTool('draw')
+  },
+
+  // Mutation rate — synced to engine
+  mutRate: 0,
+  setMutRate: (r) => {
+    set({ mutRate: r })
+    get().engine?.setMutRate(r)
   },
 
   // Brush & speed — synced to engine

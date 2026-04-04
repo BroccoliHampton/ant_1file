@@ -33,6 +33,7 @@ let _stateCallback = null;
 let _running = false;
 let _paused  = false;
 let _rafId   = null;
+let _canvasAC = null; // AbortController for canvas event listeners — aborted on stop()
 
 let boxTurns=0,boxAngle=0;
 const GDIRS=[{x:0,y:1},{x:1,y:0},{x:0,y:-1},{x:-1,y:0}];
@@ -91,6 +92,12 @@ const T = {
   CALCIFIER:65,    // Salt + Stone → armor + slow
   SPORE_BOMB:66,   // Fungi + Gunpowder → explode on death
   GIGANTISM:67,    // Lava + Ice → double HP/damage
+  // Conway's Game of Life machines
+  MACHINE:70,      // live GoL cell
+  MACHINE_DEAD:71, // recently-died GoL cell (fades out)
+  // New substances & creatures
+  JELLY:72,        // wiggly solid — falls slowly, wobbles, worms burrow through
+  WORM:73,         // snake-like creature — burrows jelly, eats ants/spiders
   CUSTOM_BASE:100, // custom lab creatures start at 100+
 };
 
@@ -113,7 +120,17 @@ const DENSITY={
   // Pharmacy drugs (liquid-like)
   [T.STIMULANT]:2,[T.CHROMADUST]:2,[T.NECTAR]:2,[T.VENOM_BREW]:2,
   [T.PHEROMONE]:2,[T.CALCIFIER]:2.5,[T.SPORE_BOMB]:2,[T.GIGANTISM]:2,
+  [T.JELLY]:4.5,
 };
+
+// Worm entity tracking — each worm is a snake-like chain of grid cells
+const worms = new Map(); // wid → {cells:[[x,y],...], dir:[dx,dy], energy, tick}
+let wormNextId = 0;
+function killWorm(wid){
+  const w=worms.get(wid);if(!w)return;
+  for(const[cx,cy]of w.cells)grid[idx(cx,cy)]=null;
+  worms.delete(wid);
+}
 
 // ================================================================
 //  PHARMACY — crafting recipes (1 A + 1 B → 1 C, 100% on contact)
@@ -179,12 +196,12 @@ const GENOME_DEFAULTS = {
   [T.PLANT]:   [[80,140],[10,40], [60,100],[0,30],  [100,180],[80,150]],
   [T.ANT]:     [[60,100],[120,200],[100,180],[80,150],[80,140],[100,180]],
   [T.QUEEN]:   [[100,160],[20,60],[80,140],[40,80],  [140,220],[180,255]],
-  [T.SPIDER]:  [[80,140],[100,180],[80,160],[160,230],[120,200],[40,100]],
+  [T.SPIDER]:  [[80,140],[100,180],[80,160],[160,230],[120,200],[120,220]],
   [T.FUNGI]:   [[40,80], [10,40], [100,180],[20,60], [80,160],[120,200]],
   [T.MITE]:    [[40,80], [160,230],[120,200],[60,120],[60,120],[140,220]],
   [T.TERMITE]:      [[60,100],[120,200],[100,180],[80,150],[80,140],[100,180]],
   [T.QUEEN_TERMITE]:[[100,160],[20,60],[80,140],[40,80],[140,220],[180,255]],
-  [T.QUEEN_SPIDER]: [[80,140],[100,180],[80,160],[160,230],[120,200],[40,100]],
+  [T.QUEEN_SPIDER]: [[80,140],[100,180],[80,160],[160,230],[120,200],[120,220]],
   [T.QUEEN_MITE]:   [[40,80],[160,230],[120,200],[60,120],[60,120],[140,220]],
 };
 
@@ -238,6 +255,7 @@ const WORKER_QUEEN_MAP={
   [T.SPIDER]:T.QUEEN_SPIDER,[T.MITE]:T.QUEEN_MITE,
 };
 function trySpeciate(type,parentGenome,parentVariant){
+  if(mutRate===0)return null; // mutations disabled — no speciation or variant inheritance
   // Existing variant: inherit or revert
   if(parentVariant){return Math.random()<VARIANT_INHERIT?{...parentVariant}:null;}
   // Check for new speciation
@@ -289,7 +307,7 @@ function mutateGenome(g,rate){
 // Strain registry — unique genome strains per kingdom
 const strainRegistry=new Map(); // strainId -> {type,genome,color,pop,born,peak}
 let nextStrain=1;
-let mutRate=0.01; // 1% per gene — more visible evolution
+let mutRate=0; // starts off — user controls via slider
 
 function registerStrain(type,genome,parentId=null){
   const id=nextStrain++;
@@ -314,7 +332,7 @@ let imageData,pixels;
 
 // Population counters (fast, updated each tick)
 const POP={[T.PLANT]:0,[T.ANT]:0,[T.TERMITE]:0,[T.QUEEN]:0,[T.QUEEN_TERMITE]:0,[T.SPIDER]:0,[T.FUNGI]:0,[T.MITE]:0,[T.QUEEN_SPIDER]:0,[T.QUEEN_MITE]:0};
-const POP_MAX={[T.PLANT]:800,[T.ANT]:300,[T.TERMITE]:200,[T.QUEEN]:100,[T.QUEEN_TERMITE]:20,[T.SPIDER]:80,[T.FUNGI]:300,[T.MITE]:200,[T.QUEEN_SPIDER]:10,[T.QUEEN_MITE]:10};
+const POP_MAX={[T.PLANT]:800,[T.ANT]:300,[T.TERMITE]:250,[T.QUEEN]:100,[T.QUEEN_TERMITE]:40,[T.SPIDER]:120,[T.FUNGI]:300,[T.MITE]:200,[T.QUEEN_SPIDER]:25,[T.QUEEN_MITE]:10};
 
 // Population history — sampled every 100 ticks, max 80 samples kept
 const POP_HISTORY={
@@ -338,6 +356,8 @@ const MACHINE_WAKE_DELAY=20;       // sim-ticks after last placement before GoL 
 const MACHINE_TICK_RATE=24;        // sim-ticks per GoL generation (slower = more watchable)
 const MACHINE_UNIVERSE_PAD=12;     // cells of padding beyond the painted bbox for the GoL universe
 let machineUniX0=0,machineUniY0=0,machineUniX1=W-1,machineUniY1=H-1; // universe bounds (set at activation)
+let machinePlacedX=-1,machinePlacedY=-1; // exact position of last placed machine cell
+let machineDrawnThisStroke=false; // prevents multiple cells per drag gesture
 try{machineBestGen=parseInt(localStorage.getItem('ant1_machineBest')||'0');}catch(e){}
 
 // ================================================================
@@ -567,8 +587,8 @@ function stepPlant(x,y,p){
     if(np.t===T.SALT)p.energy=Math.max(0,p.energy-1);
     if(np.t===T.ASH)p.energy=Math.min(255,p.energy+0.5);
     if(np.t===T.MITE&&Math.random()<0.12){set(nx,ny,null);popDecr(np);}
-    // Plants choke out spider web — convert adjacent web into plant cells
-    if(np.t===T.WEB&&Math.random()<0.06&&POP[T.PLANT]<POP_MAX[T.PLANT]){
+    // Plants choke out spider web — convert adjacent web into plant cells (fast takeover)
+    if(np.t===T.WEB&&Math.random()<0.20&&POP[T.PLANT]<POP_MAX[T.PLANT]){
       const ng=mutateGenome(p.g,mutRate);
       grid[idx(nx,ny)]=agentWithStrain(T.PLANT,ng,p.sid,{energy:100,growTimer:Math.floor(15+Math.random()*20)});
       popIncr({t:T.PLANT,sid:p.sid});
@@ -809,23 +829,25 @@ function stepTermite(x,y,p){
   if(p.buff?.type==='chromadust'&&Math.random()<0.3){const jx=x+Math.floor((Math.random()-0.5)*6),jy=y+Math.floor((Math.random()-0.5)*6);if(inB(jx,jy)&&!get(jx,jy)){swap(x,y,jx,jy);return;}}
   const tvt=p.variant?.traits||[];
   const speed=p.g[1]/255,appetite=p.g[2]/255,aggression=p.g[3]/255;
-  const woodConsumeChance=tvt.includes('fast_eat_wood')?0.40:0.18; // mostly traverse wood, sometimes eat it
+  const woodConsumeChance=tvt.includes('fast_eat_wood')?0.45:0.25;
   if(p.qcd>0)p.qcd--;
-  // Like ants' tryDropQueenFromPlantEat but for wood — uses cooldown instead of radius scan
-  function tryDropQueenTermiteFromWoodEat(atX,atY){
+  // Drop a termite queen near (atX,atY) — called on wood eat and spontaneously
+  function tryDropQueenTermite(atX,atY){
     if(p.qcd>0)return false;
     if(POP[T.QUEEN_TERMITE]>=POP_MAX[T.QUEEN_TERMITE])return false;
-    if(p.energy<130)return false;
+    if(p.energy<110)return false;
+    // No existing queen within radius 5
+    for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){if(get(atX+dx,atY+dy)?.t===T.QUEEN_TERMITE)return false;}
     // Allow empty cells OR wood cells as spawn targets (termites live inside wood)
     const spawnCells=getNeighbors(atX,atY).filter(([nx,ny])=>{const c=get(nx,ny);return !c||c.t===T.WOOD;});
     if(!spawnCells.length)return false;
     const[qx,qy]=spawnCells[Math.floor(Math.random()*spawnCells.length)];
-    const prev=get(qx,qy);if(prev?.t===T.WOOD)grid[idx(qx,qy)]=null; // displace wood (like ant displaces plant)
+    const prev=get(qx,qy);if(prev?.t===T.WOOD)grid[idx(qx,qy)]=null;
     const ng=mutateGenome(p.g,mutRate);
     const q=agentWithStrain(T.QUEEN_TERMITE,ng,p.sid,{energy:180});
     if(p.variant)q.variant=p.variant;
     grid[idx(qx,qy)]=q;popIncr(q);
-    p.energy=Math.max(0,p.energy-80);p.qcd=80;
+    p.energy=Math.max(0,p.energy-75);p.qcd=60;
     return true;
   }
   p.energy-=0.10+speed*0.10;
@@ -856,15 +878,27 @@ function stepTermite(x,y,p){
   // Gravity
   if(!touchingSolid&&!belowCell){if(inB(bx,by)){if(!get(bx,by)){moveTermiteTo(bx,by);return;}}}
 
-  // EATING — termites eat plants, fungi, detritus; wood handled via movement
+  // EATING — termites gnaw adjacent wood directly (main energy source) + other food
   for(const[nx,ny] of nbrs){
     const np=get(nx,ny);if(!np)continue;
+    // Wood: primary food source — gnaw from adjacent cells each tick
+    if(np.t===T.WOOD&&Math.random()<appetite*0.35){
+      p.energy+=30;
+      // Small chance to fully consume the wood cell (leave space)
+      if(Math.random()<0.08){grid[idx(nx,ny)]=null;}
+      tryDropQueenTermite(nx,ny);
+      break;
+    }
     if((np.t===T.PLANT||np.t===T.PLANT_WALL)&&Math.random()<appetite*0.3){p.energy+=40;if(np.t===T.PLANT)popDecr(np);grid[idx(nx,ny)]=null;break;}
     if(np.t===T.FUNGI&&!tvt.includes('fungus_friend')&&Math.random()<appetite*0.25){p.energy+=30;popDecr(np);grid[idx(nx,ny)]=null;break;}
     if(np.t===T.MITE&&Math.random()<appetite*0.5){p.energy+=15;grid[idx(nx,ny)]=null;break;}
     if((np.t===T.DETRITUS||np.t===T.ASH)&&Math.random()<appetite*0.15){p.energy+=8;grid[idx(nx,ny)]=null;break;}
   }
   p.energy=Math.min(255,p.energy);
+  // Spontaneous queen drop when well-fed — like ants/spiders, not only tied to wood movement
+  if(p.energy>=130&&p.qcd===0&&Math.random()<0.018&&POP[T.QUEEN_TERMITE]<POP_MAX[T.QUEEN_TERMITE]){
+    tryDropQueenTermite(x,y);
+  }
 
   // fighter trait: termites attack adjacent spiders
   if(tvt.includes('fighter')&&Math.random()<0.08){
@@ -907,8 +941,8 @@ function stepTermite(x,y,p){
           // Traverse or consume wood (like ant + plant)
           if(Math.random()<woodConsumeChance){
             p.energy+=20;moveTermiteTo(mx,my,{consumeWood:true});
-            tryDropQueenTermiteFromWoodEat(mx,my);
-          } else{moveTermiteTo(mx,my,{consumeWood:false});}
+            tryDropQueenTermite(mx,my);
+          } else{moveTermiteTo(mx,my,{consumeWood:false});tryDropQueenTermite(mx,my);}
         } else {
           if(dest?.t===T.DETRITUS)grid[idx(mx,my)]=null;
           moveTermiteTo(mx,my);
@@ -939,23 +973,32 @@ function stepTermite(x,y,p){
 function stepQueenTermite(x,y,p){
   p.age++;
   processBuff(p);
-  // Queen termites depend on workers feeding them (like ant queens)
-  p.energy=Math.min(255,p.energy+0.1);
-  p.energy-=0.12; // slow drain — starves without worker feeding
+  // Queen termites absorb energy from surrounding wood — self-sustaining inside logs
+  const qnbrs=getNeighbors(x,y);
+  let woodBonus=0;
+  for(const[nx,ny] of qnbrs){if(get(nx,ny)?.t===T.WOOD)woodBonus+=0.2;}
+  p.energy=Math.min(255,p.energy+0.15+woodBonus);
+  p.energy-=0.12;
   if(p.energy<=0){p.hp-=2;}
   if(p.hp<=0){set(x,y,null);popDecr(p);return;}
   if(envDamage(x,y,p))return;
 
-  const spawnRate=22+Math.floor((1-p.g[5]/255)*70);
-  if(p.age%spawnRate===0&&POP[T.TERMITE]<POP_MAX[T.TERMITE]){
-    // Allow empty OR wood cells — queens live inside wood structures
-    const nbrs=getNeighbors(x,y).filter(([nx,ny])=>{const c=get(nx,ny);return !c||c.t===T.WOOD;});
-    if(nbrs.length){
-      const[nx,ny]=nbrs[Math.floor(Math.random()*nbrs.length)];
-      const woodUnder=get(nx,ny);
-      const spawned=spawnWithSpeciation(T.TERMITE,p.g,p.sid,p.variant,{energy:120});
-      if(woodUnder?.t===T.WOOD)spawned.under=woodUnder; // worker spawns inside wood, carries underlay
-      set(nx,ny,spawned);popIncr(spawned);
+  // Spawn workers — into empty OR wood cells (termites burrow directly through wood)
+  const spawnRate=18+Math.floor((1-p.g[5]/255)*50);
+  if(p.age%spawnRate===0&&p.energy>60&&POP[T.TERMITE]<POP_MAX[T.TERMITE]){
+    const spawnTargets=qnbrs.filter(([nx,ny])=>{const c=get(nx,ny);return !c||c.t===T.WOOD;});
+    if(spawnTargets.length){
+      // Spawn up to 2 workers if high energy and well-fed
+      const count=(p.energy>180&&spawnTargets.length>=2)?2:1;
+      for(let i=0;i<count&&POP[T.TERMITE]<POP_MAX[T.TERMITE];i++){
+        const[nx,ny]=spawnTargets[Math.floor(Math.random()*spawnTargets.length)];
+        if(get(nx,ny)?.t!==T.WOOD&&get(nx,ny)!==null)continue; // may have been filled
+        const woodUnder=get(nx,ny);
+        const spawned=spawnWithSpeciation(T.TERMITE,p.g,p.sid,p.variant,{energy:120});
+        if(woodUnder?.t===T.WOOD)spawned.under=woodUnder;
+        set(nx,ny,spawned);popIncr(spawned);
+        p.energy-=30;
+      }
     }
   }
 }
@@ -1020,15 +1063,37 @@ function stepSpider(x,y,p){
     grid[destI]=p; x=nx; y=ny;
   }
 
+  // Gravity fallthrough when floating free
   const onSurface=belowCell&&(isSpiderSurface(belowCell.t)||belowCell.t===T.WATER);
   const canCling=getCardinals(x,y).some(([nx,ny])=>{const np=get(nx,ny);return np&&isSpiderSurface(np.t);});
   if(!onSurface&&!canCling&&!belowCell){if(inB(bx,by)&&!get(bx,by)){moveSpiderTo(bx,by);return;}}
   const nbrs=getNeighbors(x,y);
-  // Lay web — avoid hazard zones
-  if(Math.random()<p.g[5]/255*0.08*(svt.includes('web_boost')?3:1)){
+
+  // Lay web — prefer cells that expand the network (not already surrounded by web)
+  if(Math.random()<(0.08+p.g[5]/255*0.12)*(svt.includes('web_boost')?1.8:1)){
     const wc=nbrs.filter(([nx,ny])=>!get(nx,ny)&&!nearType(nx,ny,T.ACID,T.LAVA));
-    if(wc.length){const[wx,wy]=wc[Math.floor(Math.random()*wc.length)];grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:200+Math.floor(Math.random()*150)};}
+    if(wc.length){
+      // Prefer frontier cells (fewer existing web neighbors = more expansion)
+      const scored=wc.map(([nx,ny])=>{
+        const adjWeb=getNeighbors(nx,ny).filter(([ax,ay])=>get(ax,ay)?.t===T.WEB).length;
+        return[nx,ny,6-adjWeb]; // fewer web neighbors → higher score (expand outward)
+      });
+      scored.sort((a,b)=>b[2]-a[2]);
+      const[wx,wy]=scored[0];
+      grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:140+Math.floor(Math.random()*80)};
+    }
   }
+
+  // A cell is valid for spider movement only if it IS web, or is empty/detritus
+  // directly adjacent to existing web. No exceptions — spiders never walk open ground.
+  function onWebNetwork(nx,ny){
+    const np=get(nx,ny);
+    if(np?.t===T.WEB)return true;
+    if(!np||np.t===T.DETRITUS)
+      return getNeighbors(nx,ny).some(([ax,ay])=>get(ax,ay)?.t===T.WEB);
+    return false;
+  }
+
   const smokeBlind=nearType(x,y,T.SMOKE);
   const radius=smokeBlind?2:(svt.includes('ambush')?2:5+Math.floor(aggression*5));
   let tx2=-1,ty2=-1,bd=999;
@@ -1043,56 +1108,69 @@ function stepSpider(x,y,p){
       const bx2=tx2+ddx,by2=ty2+ddy;const beyond=inB(bx2,by2)?get(bx2,by2):null;
       if(beyond?.t===T.FIRE||beyond?.t===T.LAVA){if(np?.t===T.ANT||np?.t===T.MITE){np.hp-=30;p.energy+=15;}}
     }
-    if(!np||np.t===T.WEB||np.t===T.WOOD||np.t===T.DETRITUS){moveSpiderTo(nx,ny);}
+    // Step toward prey only along web network
+    if(onWebNetwork(nx,ny)){moveSpiderTo(nx,ny);}
+    // Attack prey that is directly adjacent regardless of web (reach through the gap)
     else if(np?.t===T.ANT||np?.t===T.TERMITE||np?.t===T.MITE||np?.t===T.EGG){
       const packBonus=svt.includes('pack')&&getNeighbors(x,y).some(([ax,ay])=>{const ap=get(ax,ay);return ap?.t===T.SPIDER;})?2:1;
       const dmg=(15+Math.floor(aggression*35))*packBonus;
       if(svt.includes('venom'))np.hp=0;else np.hp-=dmg;
-      p.energy+=20;
+      p.energy+=25;
       if(np.hp<=0){
         grid[idx(nx,ny)]=null;if(np.t===T.ANT||np.t===T.TERMITE||np.t===T.MITE)popDecr(np);
-        // Successful kill while well-fed → chance to drop a queen spider
-        if(p.energy>=190&&Math.random()<0.05&&POP[T.QUEEN_SPIDER]<POP_MAX[T.QUEEN_SPIDER]){
+        p.energy+=10;
+        if(p.energy>=110&&Math.random()<0.06&&POP[T.QUEEN_SPIDER]<POP_MAX[T.QUEEN_SPIDER]){
           let qNear2=false;
-          for(let dy2=-20;dy2<=20&&!qNear2;dy2++)for(let dx2=-20;dx2<=20&&!qNear2;dx2++){if(get(x+dx2,y+dy2)?.t===T.QUEEN_SPIDER)qNear2=true;}
+          for(let dy2=-8;dy2<=8&&!qNear2;dy2++)for(let dx2=-8;dx2<=8&&!qNear2;dx2++){if(get(x+dx2,y+dy2)?.t===T.QUEEN_SPIDER)qNear2=true;}
           if(!qNear2){
-            const qSpot=getNeighbors(x,y).filter(([qx,qy])=>!get(qx,qy));
+            const qSpot=getNeighbors(x,y).filter(([qx,qy])=>!get(qx,qy)||get(qx,qy)?.t===T.WEB);
             if(qSpot.length){
               const[qx,qy]=qSpot[Math.floor(Math.random()*qSpot.length)];
               const ng=mutateGenome(p.g,mutRate);
               grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_SPIDER,ng,p.sid,{energy:180});
-              popIncr({t:T.QUEEN_SPIDER,sid:p.sid});p.energy-=110;
+              popIncr({t:T.QUEEN_SPIDER,sid:p.sid});p.energy-=90;
             }
           }
         }
       }
     }
-    // ACID SAC: very aggressive spiders spit acid
+    // ACID SAC: spit acid ahead toward prey
     if(aggression>0.75&&p.energy>180&&Math.random()<aggression*0.02){
       const midX=x+Math.sign(tx2-x),midY=y+Math.sign(ty2-y);
       if(inB(midX,midY)&&!get(midX,midY)){grid[idx(midX,midY)]={t:T.ACID,age:0,ttl:60};p.energy-=15;}
     }
   } else {
-    const spiderMoveChance=svt.includes('fast')?0.45:0.15;
+    // No prey — wander along web network only; sit still if no web reachable
+    const spiderMoveChance=svt.includes('fast')?0.6:0.4;
     if(Math.random()<spiderMoveChance){
       const scored=nbrs.map(([nx,ny])=>{
         const np=get(nx,ny);
-        if(!np){const ss=getNeighbors(nx,ny).some(([ax,ay])=>{const ap=get(ax,ay);return ap&&isSpiderSurface(ap.t);})?2:1;return[nx,ny,ss+hazardPenalty(nx,ny,resilience)];}
-        if(np.t===T.WEB)return[nx,ny,3];if(np.t===T.WOOD)return[nx,ny,3];if(np.t===T.DETRITUS)return[nx,ny,1];return null;
+        if(np?.t===T.WEB)return[nx,ny,8+hazardPenalty(nx,ny,resilience)];
+        if(!np||np.t===T.DETRITUS){
+          if(getNeighbors(nx,ny).some(([ax,ay])=>get(ax,ay)?.t===T.WEB))
+            return[nx,ny,3+hazardPenalty(nx,ny,resilience)];
+        }
+        return null;
       }).filter(Boolean);
-      scored.sort((a,b)=>b[2]-a[2]);const best=scored[0];
+      scored.sort((a,b)=>b[2]-a[2]);
+      const best=scored[0];
       if(best&&best[2]>0)moveSpiderTo(best[0],best[1]);
     }
   }
   for(const[nx,ny] of nbrs){if(get(nx,ny)?.t===T.FUNGI&&Math.random()<0.06){p.hp-=5;break;}}
-  if(p.energy>=220&&POP[T.QUEEN_SPIDER]<POP_MAX[T.QUEEN_SPIDER]){
-    let qNear=false;for(let dy=-20;dy<=20&&!qNear;dy++)for(let dx=-20;dx<=20&&!qNear;dx++){if(get(x+dx,y+dy)?.t===T.QUEEN_SPIDER)qNear=true;}
-    if(!qNear&&Math.random()<0.006){
+  // Eat nearby detritus for supplemental energy (scavenging)
+  for(const[nx,ny] of nbrs){
+    const np=get(nx,ny);
+    if(np?.t===T.DETRITUS&&Math.random()<0.3){p.energy+=12;grid[idx(nx,ny)]=null;break;}
+  }
+  if(p.energy>=110&&POP[T.QUEEN_SPIDER]<POP_MAX[T.QUEEN_SPIDER]){
+    let qNear=false;for(let dy=-8;dy<=8&&!qNear;dy++)for(let dx=-8;dx<=8&&!qNear;dx++){if(get(x+dx,y+dy)?.t===T.QUEEN_SPIDER)qNear=true;}
+    if(!qNear&&Math.random()<0.02){
       const on=nbrs.filter(([nx,ny])=>!get(nx,ny));
-      if(on.length){const[qx,qy]=on[Math.floor(Math.random()*on.length)];const ng=mutateGenome(p.g,mutRate);grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_SPIDER,ng,p.sid,{energy:180});popIncr({t:T.QUEEN_SPIDER,sid:p.sid});p.energy-=100;}
+      if(on.length){const[qx,qy]=on[Math.floor(Math.random()*on.length)];const ng=mutateGenome(p.g,mutRate);grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_SPIDER,ng,p.sid,{energy:180});popIncr({t:T.QUEEN_SPIDER,sid:p.sid});p.energy-=90;}
     }
   }
-  if(p.energy>220&&Math.random()<p.g[5]/255*0.003&&POP[T.SPIDER]<POP_MAX[T.SPIDER]){
+  if(p.energy>120&&Math.random()<p.g[5]/255*0.006&&POP[T.SPIDER]<POP_MAX[T.SPIDER]){
     const on=nbrs.filter(([nx,ny])=>!get(nx,ny));
     if(on.length){const[nx,ny]=on[Math.floor(Math.random()*on.length)];set(nx,ny,spawnWithSpeciation(T.SPIDER,p.g,p.sid,p.variant,{energy:80}));popIncr({t:T.SPIDER,sid:p.sid});p.energy-=80;}
   }
@@ -1384,7 +1462,7 @@ function stepQueenSpider(x,y,p){
   p.energy=Math.min(255,p.energy+lv*2+0.4);
   if(p.hp<=0){set(x,y,null);popDecr(p);return;}
 
-  const spawnRate=25+Math.floor((1-p.g[5]/255)*90);
+  const spawnRate=12+Math.floor((1-p.g[5]/255)*40);
   if(p.age%spawnRate===0&&POP[T.SPIDER]<POP_MAX[T.SPIDER]){
     const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
     if(nbrs.length){
@@ -1393,10 +1471,17 @@ function stepQueenSpider(x,y,p){
       popIncr({t:T.SPIDER,sid:p.sid});
     }
   }
-  // Also lay web nearby to give workers a starting surface
-  if(p.age%40===0&&Math.random()<0.4){
+  // Lay web around queen to build starter territory for workers
+  if(p.age%12===0&&Math.random()<0.7){
     const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
-    if(nbrs.length){const[wx,wy]=nbrs[Math.floor(Math.random()*nbrs.length)];grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:300};}
+    if(nbrs.length){
+      // Lay up to 2 web cells at once to seed a growing network
+      const count=Math.min(2,nbrs.length);
+      for(let i=0;i<count;i++){
+        const[wx,wy]=nbrs[Math.floor(Math.random()*nbrs.length)];
+        grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:150+Math.floor(Math.random()*80)};
+      }
+    }
   }
 }
 
@@ -2120,16 +2205,19 @@ function stepParticle(x,y){
   // Plant wall — biological, needs its own step (decay, detritus)
 
   // Passive gravity for abiotic
+  if(p.t===T.WORM)return; // worms are processed by stepAllWorms(), not per-cell
   if(!p.g&&p.t!==T.WEB&&p.t!==T.FIRE&&p.t!==T.MUTAGEN&&p.t!==T.SPORE&&p.t!==T.FROGSTONE
       &&p.t!==T.LAVA&&p.t!==T.STEAM&&p.t!==T.ICE&&p.t!==T.SMOKE&&p.t!==T.OXYGEN
       &&p.t!==T.WOOD&&p.t!==T.ASH&&p.t!==T.ACID&&p.t!==T.GUNPOWDER
       &&p.t!==T.SALT&&p.t!==T.STONE&&p.t!==T.CLOUD&&p.t!==T.BLOOM_CLOUD&&p.t!==T.BLOOM_FIRE
-      &&p.t!==T.PROG_CLOUD&&p.t!==T.WEATHER_STATION&&p.t!==T.PROG_VOID){
+      &&p.t!==T.PROG_CLOUD&&p.t!==T.WEATHER_STATION&&p.t!==T.PROG_VOID
+      &&p.t!==T.JELLY){
     if(p.t===T.WATER||p.t===T.OIL)tryFlow(x,y);
     else if(p.t===T.CLAY) stepClay(x,y,p);
     else tryFall(x,y,p);
     return;
   }
+  if(p.t===T.JELLY){stepJelly(x,y,p);return;}
   if(p.t===T.WEB){stepWeb(x,y,p);return;}
   if(p.t===T.FIRE){stepFire(x,y,p);return;}
   if(p.t===T.MUTAGEN){stepMutagen(x,y,p);return;}
@@ -2357,8 +2445,11 @@ function getColor(p,x,y){
     case T.ACID:  {const fl=Math.random()<0.2;r=fl?255:210;g=fl?220:170;b=fl?0:0;break;} // toxic yellow-orange
     case T.GUNPOWDER:{const v=Math.floor(Math.random()*8);r=60+v;g=55+v;b=50+v;break;}
     case T.SALT:  {const v=Math.floor(Math.random()*20);r=220+v;g=220+v;b=220+v;break;}
+    case T.JELLY:{const w=Math.sin((p.age||0)*0.18)*15;r=180+w|0;g=80+(w*0.5)|0;b=160+w|0;break;} // shimmery pink-purple
+    case T.WORM:{const seg=(p.age||0)%6;r=200-(seg*8);g=80+(seg*4);b=60;break;} // segmented pink-red
     case T.QUEEN_SPIDER:{const f=Math.random()<0.15;r=f?220:170;g=f?80:50;b=f?255:210;break;} // vivid purple
-    case T.QUEEN_TERMITE:{const f=Math.random()<0.15;r=f?255:220;g=f?180:140;b=f?60:20;break;} // bright warm orange
+    case T.TERMITE:{const v=Math.floor(Math.random()*18);r=215+v;g=215+v;b=210+v;break;} // bright white
+    case T.QUEEN_TERMITE:{const f=Math.random()<0.2;r=f?255:245;g=f?245:235;b=f?210:185;break;} // warm cream
     case T.FROGSTONE: {
       const hubX=p.hubX||x, hubY=p.hubY||y;
       const sunPow2=Math.max(0,Math.min(1,1-(Math.sqrt(Math.pow(sunX-hubX,2)+Math.pow(sunY-hubY,2))/(W*0.45))));
@@ -2424,7 +2515,14 @@ function getColor(p,x,y){
   // Machine cells rendered here (no p.g, so fall-through above would give grey)
   if(p.t===T.MACHINE){
     if(p.dormant){r=50;g=70;b=90;}  // dim steel-blue while waiting to activate
-    else{const fl=Math.random();if(fl<0.12){r=255;g=255;b=255;}else{r=0;g=200+(lv*30)|0;b=230;}}
+    else{
+      // Cycle hue through rainbow each generation
+      const hv=(machineGeneration*37)%360;
+      const [cr,cg,cb]=hslToRgb(hv,100,55);
+      const fl=Math.random();
+      if(fl<0.12){r=255;g=255;b=255;}
+      else{r=cr;g=cg;b=cb;}
+    }
     return 0xFF000000|(b<<16)|(g<<8)|r;
   }
   if(p.t===T.MACHINE_DEAD){
@@ -2460,6 +2558,97 @@ function endMachineRun(){
   machineUniX0=0;machineUniY0=0;machineUniX1=W-1;machineUniY1=H-1;
 }
 
+// ================================================================
+//  JELLY — wiggly solid, falls slowly, wobbles when settled
+// ================================================================
+function stepJelly(x,y,p){
+  p.age++;
+  const bx=x+gv.x,by=y+gv.y;
+  const below=inB(bx,by)?get(bx,by):null;
+  const belowDens=getDens(below);
+  // Fall slowly — young jelly looser, old jelly stiffer
+  if(!below||(belowDens<4&&below.t!==T.WORM)){
+    const fallChance=p.age<40?0.35:0.15;
+    if(Math.random()<fallChance){tryFall(x,y,p);return;}
+  }
+  // Surface wobble — jelly cells near empty space sway laterally
+  if(p.age>15&&Math.random()<0.018){
+    const side=Math.random()<0.5?1:-1;
+    const wx=x+(gv.y!==0?side:0),wy=y+(gv.y===0?side:0);
+    if(inB(wx,wy)){
+      const nb=get(wx,wy);
+      if(!nb){grid[idx(wx,wy)]=p;grid[idx(x,y)]=null;}
+      else if(nb.t===T.JELLY){
+        // Swap with adjacent jelly (internal wiggle)
+        grid[idx(x,y)]=nb;grid[idx(wx,wy)]=p;
+      }
+    }
+  }
+}
+
+// ================================================================
+//  WORM — snake-like creature, burrows jelly, eats creatures
+// ================================================================
+function stepAllWorms(){
+  for(const[wid,worm]of worms){
+    if(!worm.cells.length){worms.delete(wid);continue;}
+    worm.energy-=0.015*worm.cells.length;
+    if(worm.energy<=0){killWorm(wid);continue;}
+    // Move every 3rd tick
+    worm.tick=(worm.tick||0)+1;
+    if(worm.tick%3!==0)continue;
+
+    const[hx,hy]=worm.cells[0];
+    let[dx,dy]=worm.dir;
+
+    // Choose best direction from forward/left/right
+    const dirs=[[dx,dy],[dy,-dx],[-dy,dx]];
+    let bestDir=null,bestScore=-999;
+    for(const[tdx,tdy]of dirs){
+      const tx=hx+tdx,ty=hy+tdy;
+      if(!inB(tx,ty)){continue;}
+      const tp=get(tx,ty);
+      let score=0;
+      if(tp===null||tp?.t===T.WEB||tp?.t===T.DETRITUS)score=2;
+      else if(tp?.t===T.JELLY)score=10;
+      else if(tp?.t===T.ANT||tp?.t===T.TERMITE||tp?.t===T.SPIDER||tp?.t===T.MITE||tp?.t===T.QUEEN)score=8;
+      else if(tp?.t===T.WORM&&tp?.wid===wid)score=-100; // own body
+      else score=-10; // blocked
+      if(score>bestScore){bestScore=score;bestDir=[tdx,tdy];}
+    }
+    if(!bestDir||bestScore<=-10){
+      // Reverse
+      worm.dir=[-dx,-dy];continue;
+    }
+    [dx,dy]=bestDir;worm.dir=[dx,dy];
+    const nx=hx+dx,ny=hy+dy;
+    if(!inB(nx,ny)){worm.dir=[-dx,-dy];continue;}
+    const target=get(nx,ny);
+
+    // Self-eating = death
+    if(target?.t===T.WORM&&target?.wid===wid){killWorm(wid);continue;}
+
+    let willGrow=false;
+    if(target?.t===T.JELLY){
+      worm.energy=Math.min(255,worm.energy+30);
+      if(worm.cells.length<30)willGrow=true;
+    } else if(target?.t===T.ANT||target?.t===T.TERMITE||target?.t===T.SPIDER||target?.t===T.MITE||target?.t===T.QUEEN){
+      worm.energy=Math.min(255,worm.energy+20);
+      if(target.g)popDecr(target);
+    } else if(target!==null&&target?.t!==T.WEB&&target?.t!==T.DETRITUS){
+      continue; // blocked
+    }
+
+    // Move snake: remove tail (unless growing), add new head
+    if(!willGrow){
+      const tail=worm.cells.pop();
+      grid[idx(tail[0],tail[1])]=null;
+    }
+    worm.cells.unshift([nx,ny]);
+    grid[idx(nx,ny)]={t:T.WORM,wid,age:0};
+  }
+}
+
 function stepMachineGoL(){
   // --- Snapshot live cells ---
   const liveCells=[];
@@ -2484,8 +2673,6 @@ function stepMachineGoL(){
       const n=grid[idx(nx,ny)];
       if(!n)continue;
       if(n.t===T.MACHINE)                                                  liveN++;
-      else if(n.t===T.WALL||n.t===T.STONE||n.t===T.CLAY_HARD
-              ||n.t===T.FRIDGE_WALL||n.t===T.WOOD)                        liveN++; // solid structures count as live
       else if(n.t===T.WATER||n.t===T.STEAM||n.t===T.ICE)                  hazard=true;
       else if(n.t===T.FIRE||n.t===T.LAVA||n.t===T.BLOOM_FIRE)             hazard=true;
       else if(n.t===T.ACID)                                                hazard=true;
@@ -2495,10 +2682,9 @@ function stepMachineGoL(){
     } else {
       if(liveN===3&&!hazard){
         // Birth into empty space or soft matter — but only within the GoL universe (set at activation)
+        // Birth only into empty cells, bounded by the GoL universe
         const inUni=x>=machineUniX0&&x<=machineUniX1&&y>=machineUniY0&&y<=machineUniY1;
-        if(inUni&&(!cell||cell.t===T.SAND||cell.t===T.GOLD_SAND||cell.t===T.WHITE_SAND
-            ||cell.t===T.DETRITUS||cell.t===T.ASH||cell.t===T.CLAY
-            ||cell.t===T.GUNPOWDER||cell.t===T.SALT||cell?.g))
+        if(inUni&&!cell)
           births.push([i,cell]);
       }
     }
@@ -2509,19 +2695,44 @@ function stepMachineGoL(){
     if(grid[i]?.t===T.MACHINE)grid[i]={t:T.MACHINE_DEAD,age:0};
   }
   // Apply births
-  for(const[i,prev] of births){
-    if(grid[i]?.t===T.MACHINE)continue; // collision — already alive
-    if(prev?.g)popDecr(prev);           // absorb creature
+  for(const[i] of births){
+    if(grid[i])continue; // cell now occupied — skip
     grid[i]={t:T.MACHINE,age:0};
   }
-  // Fungi infection: machines adjacent to dense fungi have a small chance to die
+  // --- Virus spread: machines infect organic cells, die on loose terrain ---
+  const _isOrganic=t=>(t===T.ANT||t===T.QUEEN||t===T.SPIDER||t===T.QUEEN_SPIDER||
+    t===T.TERMITE||t===T.QUEEN_TERMITE||t===T.MITE||t===T.QUEEN_MITE||
+    t===T.PLANT||t===T.PLANT_WALL||t===T.FUNGI||t===T.WEB||
+    t===T.DETRITUS||t===T.SPORE||t===T.SEED||t===T.EGG||t===T.WOOD);
+  const _isTerrainKill=t=>(t===T.SAND||t===T.GOLD_SAND||t===T.WHITE_SAND||
+    t===T.SALT||t===T.GUNPOWDER||t===T.ASH);
+  const INFECT=0.06, SPREAD=0.18;
+  const infectQueue=[], infected=new Set();
   for(const i of liveCells){
     if(grid[i]?.t!==T.MACHINE)continue;
     const x=i%W,y=Math.floor(i/W);
+    let terrainDeath=false;
     for(const[nx,ny] of getNeighbors(x,y)){
-      if(grid[idx(nx,ny)]?.t===T.FUNGI&&Math.random()<0.015){
-        grid[i]=null; break;
-      }
+      const ni=idx(nx,ny),n=grid[ni];
+      if(!n)continue;
+      if(_isTerrainKill(n.t)){terrainDeath=true;continue;}
+      if(_isOrganic(n.t)&&Math.random()<INFECT)infectQueue.push(ni);
+    }
+    if(terrainDeath&&grid[i]?.t===T.MACHINE)grid[i]={t:T.MACHINE_DEAD,age:0};
+  }
+  // BFS chain spread — density drives cascade
+  while(infectQueue.length){
+    const ni=infectQueue.shift();
+    if(infected.has(ni))continue;
+    const n=grid[ni];
+    if(!n||!_isOrganic(n.t))continue;
+    infected.add(ni);
+    if(n.g)popDecr(n);
+    grid[ni]={t:T.MACHINE,age:0};
+    const cx=ni%W,cy=Math.floor(ni/W);
+    for(const[nx,ny] of getNeighbors(cx,cy)){
+      const nni=idx(nx,ny);
+      if(!infected.has(nni)&&_isOrganic(grid[nni]?.t)&&Math.random()<SPREAD)infectQueue.push(nni);
     }
   }
   // Check if any machines remain
@@ -2544,6 +2755,7 @@ function buildOrder(){
 function simStep(){
   if(++stepsSince>40){buildOrder();stepsSince=0;}
   for(const i of updateOrder)if(grid[i])stepParticle(i%W,Math.floor(i/W));
+  stepAllWorms();
   updateLight();
 
   // Spontaneous fire from oil/detritus
@@ -2612,24 +2824,6 @@ function simStep(){
   }
 
   // --- Machine (GoL) ---
-  // Countdown: if user placed machines recently, wait MACHINE_WAKE_DELAY ticks then activate
-  if(lastMachinePlacedTick>=0&&!machineRunning){
-    if(tickCount-lastMachinePlacedTick>=MACHINE_WAKE_DELAY){
-      let hasMachines=false;
-      for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE){hasMachines=true;break;}}
-      if(hasMachines){
-        machineRunning=true;machineGeneration=0;lastMachinePlacedTick=-999;
-        // Compute the bounding box of all placed cells and set the GoL universe with padding
-        let x0=W,y0=H,x1=0,y1=0;
-        for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE){const mx=mi%W,my=Math.floor(mi/W);x0=Math.min(x0,mx);y0=Math.min(y0,my);x1=Math.max(x1,mx);y1=Math.max(y1,my);}}
-        machineUniX0=Math.max(0,x0-MACHINE_UNIVERSE_PAD);
-        machineUniY0=Math.max(0,y0-MACHINE_UNIVERSE_PAD);
-        machineUniX1=Math.min(W-1,x1+MACHINE_UNIVERSE_PAD);
-        machineUniY1=Math.min(H-1,y1+MACHINE_UNIVERSE_PAD);
-        showEventToast('⚙ MACHINE ACTIVATED','Conway\'s Game of Life — tick!');
-      } else {lastMachinePlacedTick=-999;}
-    }
-  }
   if(machineRunning&&tickCount%MACHINE_TICK_RATE===0)stepMachineGoL();
 
   tickCount++;
@@ -3060,17 +3254,24 @@ function drawAt(cx,cy){
         case 'fungi':{const g=randomGenome(T.FUNGI);const s=registerStrain(T.FUNGI,g);grid[idx(px,py)]=agentWithStrain(T.FUNGI,g,s,{energy:100});POP[T.FUNGI]++;break;}
         case 'mite':{const g=randomGenome(T.MITE);const s=registerStrain(T.MITE,g);grid[idx(px,py)]=agentWithStrain(T.MITE,g,s,{energy:120});POP[T.MITE]++;break;}
         case 'queenMite':{const g=randomGenome(T.QUEEN_MITE);const s=registerStrain(T.QUEEN_MITE,g);grid[idx(px,py)]=agentWithStrain(T.QUEEN_MITE,g,s,{energy:180});POP[T.QUEEN_MITE]++;break;}
-        case 'machine':{
-          // Always 1-pixel brush — skip any cell that isn't the exact cursor position
-          if(dx!==0||dy!==0)break;
-          // Placing new machine cells resets any active run back to countdown
-          if(machineRunning){
-            machineRunning=false;machineGeneration=0;
-            for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE)grid[mi].dormant=true;}
+        case 'jelly':      grid[idx(px,py)]={t:T.JELLY,age:0};break;
+        case 'worm':{
+          // Only place at brush center — spawns a 5-cell worm
+          if(dx===0&&dy===0){
+            const wid=wormNextId++;
+            const cells=[];
+            for(let i=0;i<5;i++){const cx=px-i,cy=py;if(!inB(cx,cy)||get(cx,cy))continue;cells.push([cx,cy]);grid[idx(cx,cy)]={t:T.WORM,wid,age:0};}
+            if(cells.length>=2)worms.set(wid,{cells,dir:[1,0],energy:200,tick:0});
           }
-          const existing=grid[idx(px,py)];if(existing?.g)popDecr(existing);
-          grid[idx(px,py)]={t:T.MACHINE,age:0,dormant:true};
-          lastMachinePlacedTick=tickCount;
+          break;
+        }
+        case 'machine':{
+          // Scattered random placement across full brush — ~40% density per cell
+          if(machineRunning)break;
+          if(Math.random()<0.40){
+            const ec=grid[idx(px,py)];if(ec?.g)popDecr(ec);
+            grid[idx(px,py)]={t:T.MACHINE,age:0,dormant:true};
+          }
           break;
         }
         default:{
@@ -3134,8 +3335,8 @@ function clientToCanvasLocal(cx,cy){
   return[rx+rect.width/2, ry+rect.height/2];
 }
 
-// Update stamp hint text
-_dom('stamp-sel').addEventListener('change',()=>{
+// Update stamp hint text (listener attached lazily via attachToolbarListeners after React renders)
+_dom('stamp-sel')?.addEventListener('change',()=>{
   const isBox=getStampMode()==='box_draw';
   _dom('stamp-hint').style.display=isBox?'block':'none';
   _dom('box-preview').style.display='none';
@@ -3143,9 +3344,15 @@ _dom('stamp-sel').addEventListener('change',()=>{
 });
 
 function _setupCanvasListeners() {
+// Abort any previously registered canvas listeners (handles React StrictMode double-mount)
+if(_canvasAC)_canvasAC.abort();
+_canvasAC=new AbortController();
+const sig=_canvasAC.signal;
+
 canvas.addEventListener('mousedown',e=>{
   if(e.button===2){inspectCell(e.clientX,e.clientY);return;}
   isDown=true;
+  machineDrawnThisStroke=false;
   if(currentTool==='stamp'&&getStampMode()==='box_draw'){
     const[gx,gy]=canvasToGrid(e.clientX,e.clientY);
     const[px,py]=clientToCanvasLocal(e.clientX,e.clientY);
@@ -3153,7 +3360,7 @@ canvas.addEventListener('mousedown',e=>{
     return;
   }
   drawAt(e.clientX,e.clientY);
-});
+},{signal:sig});
 
 canvas.addEventListener('mousemove',e=>{
   if(observeMode){
@@ -3162,7 +3369,6 @@ canvas.addEventListener('mousemove',e=>{
   }
   if(isDown&&currentTool==='stamp'&&getStampMode()==='box_draw'&&boxDrawStart){
     const[px,py]=clientToCanvasLocal(e.clientX,e.clientY);
-    // Scale preview to screen coords (canvas display vs actual)
     const rect=canvas.getBoundingClientRect();
     const scaleX=rect.width/canvas.width, scaleY=rect.height/canvas.height;
     updateBoxPreview(
@@ -3173,7 +3379,7 @@ canvas.addEventListener('mousemove',e=>{
   }
   if(isDown&&currentTool!=='stamp'&&!observeMode) drawAt(e.clientX,e.clientY);
   if(!observeMode) updateHoverTip(e.clientX,e.clientY);
-});
+},{signal:sig});
 
 canvas.addEventListener('mouseup',e=>{
   if(currentTool==='stamp'&&getStampMode()==='box_draw'&&boxDrawStart){
@@ -3183,15 +3389,54 @@ canvas.addEventListener('mouseup',e=>{
     boxDrawStart=null;
   }
   isDown=false;
-});
+},{signal:sig});
 
 canvas.addEventListener('mouseleave',()=>{
   isDown=false;
   _dom('hover-tip').style.display='none';
   if(observeMode) _dom('observe-tooltip').classList.remove('visible');
-  // Keep box preview visible if still drawing (user moved outside canvas)
-});
-canvas.addEventListener('contextmenu',e=>{e.preventDefault();inspectCell(e.clientX,e.clientY);});
+},{signal:sig});
+canvas.addEventListener('contextmenu',e=>{e.preventDefault();inspectCell(e.clientX,e.clientY);},{signal:sig});
+
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.touches[0];
+  isDown=true;
+  machineDrawnThisStroke=false;
+  if(currentTool==='stamp'&&getStampMode()==='box_draw'){
+    const[gx,gy]=canvasToGrid(t.clientX,t.clientY);
+    const[px,py]=clientToCanvasLocal(t.clientX,t.clientY);
+    boxDrawStart={gx,gy,px,py};
+    return;
+  }
+  drawAt(t.clientX,t.clientY);
+},{passive:false,signal:sig});
+
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(!isDown)return;
+  const t=e.touches[0];
+  if(currentTool==='stamp'&&getStampMode()==='box_draw'&&boxDrawStart){
+    const[px,py]=clientToCanvasLocal(t.clientX,t.clientY);
+    const rect=canvas.getBoundingClientRect();
+    const scaleX=rect.width/canvas.width,scaleY=rect.height/canvas.height;
+    updateBoxPreview(boxDrawStart.px*scaleX,boxDrawStart.py*scaleY,px*scaleX,py*scaleY);
+    return;
+  }
+  if(currentTool!=='stamp'&&!observeMode) drawAt(t.clientX,t.clientY);
+},{passive:false,signal:sig});
+
+canvas.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(currentTool==='stamp'&&getStampMode()==='box_draw'&&boxDrawStart&&e.changedTouches.length){
+    const t=e.changedTouches[0];
+    const[gx,gy]=canvasToGrid(t.clientX,t.clientY);
+    placeBoxDraw(boxDrawStart.gx,boxDrawStart.gy,gx,gy);
+    _dom('box-preview').style.display='none';
+    boxDrawStart=null;
+  }
+  isDown=false;
+},{passive:false,signal:sig});
 }
 
 // ================================================================
@@ -3232,6 +3477,7 @@ const ELEMENTS=[
   {cat:null,      key:'fungi',       label:'FUNGI',        col:K_COLORS[T.FUNGI],        tag:'🍄'},
   {cat:null,      key:'mite',        label:'MITE',         col:K_COLORS[T.MITE],         tag:'🪲'},
   {cat:null,      key:'queenMite',   label:'QUEEN MITE',   col:K_COLORS[T.QUEEN_MITE],   tag:'🪲👑'},
+  {cat:null,      key:'worm',        label:'WORM',         col:'#c85040',                tag:'🪱'},
   {cat:'SPECIAL', key:'mutagen', label:'LIFE SEED',  col:'#cc00ee',  tag:'⚛'},
   {cat:null,      key:'cloud',       label:'CLOUD',        col:'#aaccee',  tag:'☁'},
   {cat:null,      key:'bloomCloud',  label:'BLOOM CLOUD',  col:'#881020',  tag:'💥'},
@@ -3247,7 +3493,8 @@ const ELEMENTS=[
   {cat:null,      key:'calcifier',  label:'CALCIFIER',   col:'#9090a0',  tag:'🪨'},
   {cat:null,      key:'sporeBomb',  label:'SPORE BOMB',  col:'#6600aa',  tag:'💣'},
   {cat:null,      key:'gigantism',  label:'GIGANTISM',   col:'#aa3366',  tag:'⬆'},
-  {cat:'ABIOTIC', key:'sand',    label:'SAND',       col:'#c4a35a',  tag:'ρ5'},
+  {cat:'ABIOTIC', key:'jelly',   label:'JELLY',      col:'#c055a0',  tag:'〰'},
+  {cat:null,      key:'sand',    label:'SAND',       col:'#c4a35a',  tag:'ρ5'},
   {cat:null,      key:'clay',    label:'CLAY',       col:'#7a8599',  tag:'ρ5'},
   {cat:null,      key:'stone',   label:'STONE',      col:'#787878',  tag:'ρ7'},
   {cat:null,      key:'wood',    label:'WOOD',       col:'#6e4020',  tag:'ρ4'},
@@ -3277,8 +3524,9 @@ ELEMENTS.forEach(e=>{
     _domAll('.tbtn[data-tool]').forEach(b=>b.classList.remove('active'));
     _dom('btn-draw').classList.add('active');
     // Show/hide config panels for special elements
-    _dom('pc-panel').style.display=e.key==='progCloud'?'block':'none';
-    _dom('pv-panel').style.display=e.key==='progVoid'?'block':'none';
+    const _pc=_dom('pc-panel'),_pv=_dom('pv-panel');
+    if(_pc)_pc.style.display=e.key==='progCloud'?'block':'none';
+    if(_pv)_pv.style.display=e.key==='progVoid'?'block':'none';
   });
   el.appendChild(btn);
 });
@@ -3293,52 +3541,8 @@ const MOBILE_CATS = {
   rx:      ['stimulant','chromadust','nectar','venomBrew','pheromone','calcifier','sporeBomb','gigantism'],
 };
 
-function buildElementTray(cat) {
-  const tray = _dom('element-tray');
-  tray.innerHTML = '';
-  const keys = MOBILE_CATS[cat] || MOBILE_CATS.terrain;
-  keys.forEach(key => {
-    const src = _domQ(`#elist button[data-el="${key}"]`);
-    if (!src) return;
-    const btn = document.createElement('button');
-    btn.className = 'tray-pill' + (src.classList.contains('active') ? ' active' : '');
-    btn.dataset.el = key;
-    const swEl = src.querySelector('.sw');
-    const col = swEl ? swEl.style.background : '#888';
-    const nameEl = src.querySelector('.en');
-    const name = nameEl ? nameEl.textContent : key;
-    const tagEl = src.querySelector('.et');
-    const tag = tagEl ? tagEl.textContent : '';
-    btn.innerHTML = `<span class="tp-swatch" style="background:${col}"></span><span class="tp-name">${name}</span>`;
-    btn.title = tag;
-    btn.addEventListener('click', () => {
-      src.click();
-      _domAll('.tray-pill').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    });
-    tray.appendChild(btn);
-  });
-}
-
-let activeMobileCat = 'terrain';
-_domAll('.cat-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    activeMobileCat = tab.dataset.cat;
-    _domAll('.cat-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    buildElementTray(activeMobileCat);
-  });
-});
-
-_domAll('#elist .ebtn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    _domAll('.tray-pill').forEach(b => {
-      b.classList.toggle('active', b.dataset.el === btn.dataset.el);
-    });
-  });
-});
-
-buildElementTray('terrain');
+// Element tray and category tabs are now owned by React (ElementTray / CategoryTabs components).
+// Engine receives element changes via engine.setElement(key) called from the Zustand store.
 
 // ================================================================
 //  MOBILE UI: MENU DRAWER
@@ -3529,6 +3733,18 @@ function seedLife(){
       POP[T.PLANT]++;
     }
   }
+  // Wood logs (food source for termites + structural element)
+  for(let n=0;n<4;n++){
+    const lx=Math.floor(Math.random()*W2*0.8+W2*0.1);
+    const ly=Math.floor(Math.random()*H2*0.5+H2*0.2);
+    const len=6+Math.floor(Math.random()*10);
+    for(let i=0;i<len;i++){const wx=lx+i,wy=ly;if(inB(wx,wy)&&!get(wx,wy))grid[idx(wx,wy)]=abiotic(T.WOOD);}
+    // Termite workers near each log
+    for(let t=0;t<4;t++){
+      for(let att=0;att<10;att++){const tx=lx+Math.floor(Math.random()*len),ty=ly+Math.floor((Math.random()-0.5)*3);
+        if(inB(tx,ty)&&!get(tx,ty)){const g=randomGenome(T.TERMITE);const s=registerStrain(T.TERMITE,g);grid[idx(tx,ty)]=agentWithStrain(T.TERMITE,g,s,{energy:140});POP[T.TERMITE]++;break;}}
+    }
+  }
   // Ants
   for(let n=0;n<20;n++){
     const x=Math.floor(Math.random()*W2),y=Math.floor(Math.random()*H2);
@@ -3575,6 +3791,7 @@ function resetSim(){
   activeEvent=null;
   _dom('klist').innerHTML='';
   fridgeZones=[];
+  worms.clear();wormNextId=0;
   heldMutagen=null;
   for(const t of [T.PLANT,T.ANT,T.TERMITE,T.QUEEN,T.QUEEN_TERMITE,T.SPIDER,T.FUNGI,T.MITE,T.QUEEN_SPIDER,T.QUEEN_MITE]) POP_HISTORY[t]=[];
   for(const id of customCreatures.keys()){POP[id]=0;POP[id+100]=0;}
@@ -3990,21 +4207,49 @@ function getProgCloudConfig(){
   return{type:typeMap[key]||T.WATER,rate};
 }
 
-document.addEventListener('DOMContentLoaded',()=>{
-  const rateEl=_dom('ws-rate');
-  if(rateEl) rateEl.addEventListener('input',function(){
-    _dom('ws-rate-val').textContent=this.value;
-    if(ws_rain_active){ws_rain_rate=parseInt(this.value);}
-  });
+// Wire up stamp-sel change (attaches after React renders the toolbar)
+function attachToolbarListeners(){
+  const stampSel=_dom('stamp-sel');
+  if(stampSel&&!stampSel._wired){
+    stampSel._wired=true;
+    stampSel.addEventListener('change',()=>{
+      const isBox=getStampMode()==='box_draw';
+      const hint=_dom('stamp-hint');if(hint)hint.style.display=isBox?'block':'none';
+      const bp=_dom('box-preview');if(bp)bp.style.display='none';
+    });
+  }
+  const wsRate=_dom('ws-rate');
+  if(wsRate&&!wsRate._wired){
+    wsRate._wired=true;
+    wsRate.addEventListener('input',function(){
+      const v=_dom('ws-rate-val');if(v)v.textContent=this.value;
+      if(ws_rain_active)ws_rain_rate=parseInt(this.value);
+    });
+  }
+  const wsStart=_dom('ws-start');
+  if(wsStart&&!wsStart._wired){
+    wsStart._wired=true;
+    wsStart.addEventListener('click',()=>wsSetRain(!ws_rain_active));
+  }
+  const wsClose=_dom('ws-close-btn');
+  if(wsClose&&!wsClose._wired){
+    wsClose._wired=true;
+    wsClose.addEventListener('click',()=>{wsSetRain(false);const p=_dom('ws-panel');if(p)p.style.display='none';});
+  }
   const pcRate=_dom('pc-rate');
-  if(pcRate) pcRate.addEventListener('input',function(){
-    _dom('pc-rate-val').textContent=this.value+' ticks';
-  });
+  if(pcRate&&!pcRate._wired){
+    pcRate._wired=true;
+    pcRate.addEventListener('input',function(){const v=_dom('pc-rate-val');if(v)v.textContent=this.value+' ticks';});
+  }
   const pvRadius=_dom('pv-radius');
-  if(pvRadius) pvRadius.addEventListener('input',function(){
-    _dom('pv-radius-val').textContent=this.value;
-  });
-});
+  if(pvRadius&&!pvRadius._wired){
+    pvRadius._wired=true;
+    pvRadius.addEventListener('input',function(){const v=_dom('pv-radius-val');if(v)v.textContent=this.value;});
+  }
+}
+document.addEventListener('DOMContentLoaded',attachToolbarListeners);
+// Also run after a short delay so React-rendered elements are in the DOM
+setTimeout(attachToolbarListeners,200);
 
 // ================================================================
 function openDocs(){ _dom('docs-overlay').classList.add('open'); }
@@ -4276,7 +4521,112 @@ function onArchetypeChange(){
   if(arch==='creature') _dom('lab-diet').value='omnivore';
 }
 
+function buildLabPanel(){
+  const panel=_dom('lab-panel');if(!panel)return;
+  panel.innerHTML=`
+<button id="lab-close">✕ CLOSE</button>
+<div id="lab-creature-card" style="display:none;position:absolute;z-index:9999;background:var(--card,#1a1a1a);border:1px solid var(--border,#444);padding:6px;border-radius:4px;font-size:7px;pointer-events:none;max-width:140px;"></div>
+<div style="display:flex;gap:6px;flex:1;min-height:0;margin-top:6px;overflow:hidden;">
+  <div id="lab-left" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px;">
+    <div style="display:flex;align-items:center;gap:5px;">
+      <div id="lab-icon-display" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:13px;cursor:pointer;background:hsl(180,60%,25%);flex-shrink:0;">?</div>
+      <input id="lab-name" type="text" placeholder="Name..." style="flex:1;font-size:8px;padding:2px 4px;background:#1a1a1a;border:1px solid #444;border-radius:3px;color:#eee;"/>
+    </div>
+    <div id="lab-icon-picker" style="display:none;position:absolute;z-index:200;background:#1a1a1a;border:1px solid #444;border-radius:4px;padding:4px;flex-wrap:wrap;max-width:150px;max-height:80px;overflow-y:auto;"></div>
+    <div style="display:flex;align-items:center;gap:5px;">
+      <div id="lab-color-preview" style="width:14px;height:14px;border-radius:50%;flex-shrink:0;"></div>
+      <input id="lab-hue" type="range" min="0" max="360" value="180" style="flex:1;" oninput="_labFn.updateColor()">
+    </div>
+    <div class="lab-lbl">ARCHETYPE</div>
+    <select id="lab-archetype" style="font-size:8px;padding:2px;" onchange="_labFn.archChange()">
+      <option value="creature">Creature</option><option value="plant">Plant</option><option value="fungi">Fungi</option>
+    </select>
+    <div class="lab-lbl">SIZE</div>
+    <select id="lab-size" style="font-size:8px;padding:2px;">
+      <option value="tiny">Tiny</option><option value="small">Small</option><option value="medium" selected>Medium</option><option value="large">Large</option>
+    </select>
+    <div id="lab-movement-field">
+      <div class="lab-lbl">MOVEMENT</div>
+      <select id="lab-movement" style="font-size:8px;padding:2px;">
+        <option value="walker">Walker</option><option value="flyer">Flyer</option><option value="swimmer">Swimmer</option>
+        <option value="burrower">Burrower</option><option value="climber">Climber</option><option value="swarmer">Swarmer</option>
+      </select>
+    </div>
+    <div class="lab-lbl">DIET</div>
+    <select id="lab-diet" style="font-size:8px;padding:2px;">
+      <option value="herbivore">Herbivore</option><option value="fungivore">Fungivore</option><option value="detritivore">Detritivore</option>
+      <option value="lithivore">Lithivore</option><option value="omnivore" selected>Omnivore</option><option value="photosynthetic">Photosynthetic</option>
+      <option value="parasitic">Parasitic</option><option value="pyrotroph">Pyrotroph</option><option value="cryotroph">Cryotroph</option>
+    </select>
+    <div id="lab-attack-field">
+      <div class="lab-lbl">ATTACK</div>
+      <select id="lab-attack" style="font-size:8px;padding:2px;">
+        <option value="bite">Bite</option><option value="venom">Venom</option><option value="acid_spit">Acid Spit</option>
+        <option value="fire_breath">Fire Breath</option><option value="crush">Crush</option>
+      </select>
+    </div>
+    <div class="lab-lbl">REPRODUCTION</div>
+    <select id="lab-repro-type" style="font-size:8px;padding:2px;">
+      <option value="budding">Budding</option><option value="egg_layer">Egg Layer</option><option value="spore">Spore</option>
+      <option value="cloning">Cloning</option><option value="flowering">Flowering</option>
+    </select>
+    <div id="lab-plant-opts" style="display:none;">
+      <div class="lab-lbl">LIGHT REQ <span id="lab-light-val">40%</span></div>
+      <input id="lab-light-req" type="range" min="0" max="100" value="40" style="width:100%;" oninput="document.getElementById('lab-light-val').textContent=this.value+'%'">
+      <div class="lab-lbl">SPREAD SPD <span id="lab-spread-val">40%</span></div>
+      <input id="lab-spread" type="range" min="0" max="100" value="40" style="width:100%;" oninput="document.getElementById('lab-spread-val').textContent=this.value+'%'">
+      <div class="lab-lbl">FLOWER EMIT</div>
+      <select id="lab-flower-emit" style="font-size:8px;padding:2px;">
+        <option value="none">None</option><option value="fire">Fire</option><option value="acid">Acid</option><option value="spore">Spore</option>
+      </select>
+    </div>
+  </div>
+  <div id="lab-right" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-left:4px;">
+    <div class="lab-lbl">AGGRESSION <span id="lab-aggression-val">50%</span></div>
+    <input id="lab-aggression" type="range" min="0" max="100" value="50" style="width:100%;" oninput="document.getElementById('lab-aggression-val').textContent=this.value+'%'">
+    <div class="lab-lbl">REPRODUCTION <span id="lab-repro-val">40%</span></div>
+    <input id="lab-repro" type="range" min="0" max="100" value="40" style="width:100%;" oninput="document.getElementById('lab-repro-val').textContent=this.value+'%'">
+    <div class="lab-lbl">FEAR <span id="lab-fear-val">30%</span></div>
+    <input id="lab-fear" type="range" min="0" max="100" value="30" style="width:100%;" oninput="document.getElementById('lab-fear-val').textContent=this.value+'%'">
+    <div id="lab-section-prey" class="lab-lbl">PREY</div>
+    <div id="lab-prey-list" class="lab-toggle-list"></div>
+    <div class="lab-lbl">ALLIES</div>
+    <div id="lab-ally-list" class="lab-toggle-list"></div>
+    <div class="lab-lbl">HUNTED BY</div>
+    <div id="lab-hunted-list" class="lab-toggle-list"></div>
+    <div class="lab-lbl">HARMFUL TO</div>
+    <div id="lab-harmful-list" class="lab-toggle-list"></div>
+    <div class="lab-lbl">SPECIALS</div>
+    <div id="lab-specials-list" class="lab-toggle-list"></div>
+    <div class="lab-lbl">TOLERANCES</div>
+    <div id="lab-tolerances" class="lab-toggle-list"></div>
+    <div class="lab-lbl">ELEM BEHAVIOR</div>
+    <div id="lab-elem-behaviors"></div>
+  </div>
+</div>
+<div class="lab-footer" style="flex-shrink:0;padding:6px 4px 2px;border-top:1px solid var(--btn-border,#444);margin-top:4px;">
+  <div class="lab-btn-row" style="display:flex;gap:4px;margin-bottom:4px;">
+    <button class="primary" style="flex:1;font-size:8px;padding:4px 6px;cursor:pointer;">✓ SAVE CREATURE</button>
+    <button style="font-size:8px;padding:4px 6px;cursor:pointer;">🎲</button>
+  </div>
+  <div class="lab-lbl">YOUR CREATURES</div>
+  <div id="lab-history" style="overflow-y:auto;max-height:80px;"></div>
+</div>`;
+  // Re-attach close button (replaces the one from JSX)
+  const closeBtn=_dom('lab-close');
+  if(closeBtn) closeBtn.addEventListener('click',()=>closeLab());
+  // Attach save/generate buttons
+  const btnRow=_domQ('.lab-btn-row');
+  if(btnRow){
+    btnRow.querySelector('.primary')?.addEventListener('click',()=>saveCreature());
+    btnRow.querySelectorAll('button')[1]?.addEventListener('click',()=>generateCreature());
+  }
+  // Attach icon display click
+  _dom('lab-icon-display')?.addEventListener('click',()=>toggleIconPicker());
+}
+
 function initLabBuilder(){
+  if(!_dom('lab-archetype')) buildLabPanel();
   updateLabColorPreview();
   const picker=_dom('lab-icon-picker');
   picker.innerHTML=CREATURE_ICONS.map(ic=>`<span style="cursor:pointer;padding:2px;" onclick="selectLabIcon('${ic}')">${ic}</span>`).join('');
@@ -4413,10 +4763,15 @@ function openLab(){
   if(saveBtn) saveBtn.textContent='✓ SAVE CREATURE';
 
   _dom('lab-popup').classList.add('open');
-  initLabBuilder();
-  updateLabHistory();
-  _dom('lab-icon-display').textContent=labIcon;
-  updateLabColorPreview();
+  // Defer DOM injection until after React's re-render (triggered by MenuDrawer close())
+  setTimeout(()=>{
+    buildLabPanel();
+    initLabBuilder();
+    updateLabHistory();
+    const iconEl=_dom('lab-icon-display');
+    if(iconEl) iconEl.textContent=labIcon;
+    updateLabColorPreview();
+  }, 0);
 }
 function closeLab(){
   _dom('lab-popup').classList.remove('open');
@@ -4590,8 +4945,9 @@ function editCreature(id){
   hideCreatureCard();
   // Open lab if not already open
   _dom('lab-popup').classList.add('open');
-  // Small delay so DOM is ready
+  // Small delay so DOM is ready (and any React re-render has flushed)
   setTimeout(()=>{
+    buildLabPanel();
     initLabBuilder();
     loadCreatureIntoForm(id);
     updateLabHistory();
@@ -5158,10 +5514,25 @@ function showObserveTooltip(mx,my,p,gx,gy){
 // Wire up lab popup close on backdrop click
 _dom('lab-popup').addEventListener('click',e=>{if(e.target===_dom('lab-popup'))closeLab();});
 
+// Expose lab helper functions for inline event handlers in buildLabPanel HTML
+window._labFn={
+  updateColor:()=>updateLabColorPreview(),
+  archChange:()=>onArchetypeChange(),
+};
+// Also expose cancelEdit globally for the editing banner button
+window.cancelEdit=cancelEdit;
+
 buildOrder();
 
 // ─── createEngine export ─────────────────────────────────────────
 export function createEngine(canvasEl, stateCallback) {
+  // Tear down any previous engine instance before creating a new one.
+  // This makes createEngine idempotent under React StrictMode / HMR remounts.
+  if(_rafId){cancelAnimationFrame(_rafId);_rafId=null;}
+  _running=false;
+  if(_canvasAC){_canvasAC.abort();_canvasAC=null;}
+  isDown=false; // reset draw state
+
   canvas = canvasEl;
   ctx    = canvas.getContext('2d');
   wrap   = canvasEl; // canvas-wrap DOM queries are safe stubs
@@ -5192,9 +5563,8 @@ export function createEngine(canvasEl, stateCallback) {
     }
     render();
     if (_stateCallback && uiFrame % 8 === 0) {
-      const machineCountdown = (!machineRunning && lastMachinePlacedTick >= 0)
-        ? Math.max(0, MACHINE_WAKE_DELAY - (tickCount - lastMachinePlacedTick))
-        : null;
+      let hasMachineCells=false;
+      for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE){hasMachineCells=true;break;}}
       _stateCallback({
         tick: tickCount,
         era: getEra(),
@@ -5203,7 +5573,8 @@ export function createEngine(canvasEl, stateCallback) {
         machineGen: machineGeneration,
         machineBest: machineBestGen,
         machineRunning,
-        machineCountdown,
+        machineCountdown: null,
+        hasMachineCells,
       });
     }
     uiFrame++;
@@ -5212,19 +5583,44 @@ export function createEngine(canvasEl, stateCallback) {
 
   return {
     start()  { _running = true; _paused = false; lastTime = performance.now(); _rafId = requestAnimationFrame(_loop); },
-    stop()   { _running = false; if (_rafId) cancelAnimationFrame(_rafId); _rafId = null; },
+    stop()   { _running = false; if (_rafId) cancelAnimationFrame(_rafId); _rafId = null; if(_canvasAC){_canvasAC.abort();_canvasAC=null;} },
     pause()  { _paused = true; },
     resume() { _paused = false; if (_running) { lastTime = performance.now(); _rafId = requestAnimationFrame(_loop); } },
     reset()  { resetSim(); },
     seed()   { seedLife(); },
     randomMap() { randomMap(); },
-    setElement(key) { currentEl = key; currentTool = 'draw'; },
-    setTool(tool)   { currentTool = tool; speedMult = tool === 'pause' ? 0 : speedMult; },
+    openLab() { openLab(); },
+    setElement(key) {
+      currentEl = key; currentTool = 'draw';
+      // Show/hide config panels for special elements
+      const pc=_dom('pc-panel'),pv=_dom('pv-panel');
+      if(pc) pc.style.display=key==='progCloud'?'block':'none';
+      if(pv) pv.style.display=key==='progVoid'?'block':'none';
+    },
+    setTool(tool) {
+      currentTool = tool; speedMult = tool === 'pause' ? 0 : speedMult;
+      const sp=_dom('stamp-picker');
+      if(sp) sp.style.display=tool==='stamp'?'block':'none';
+    },
     setBrush(size)     { brushSize = size; },
     setBrushSize(size) { brushSize = size; },
     setSpeed(mult)     { speedMult = mult; },
     setMutRate(r)   { mutRate = r; },
+    getMutRate()    { return mutRate; },
     getTickCount()  { return tickCount; },
     getGrid()       { return grid; },
+    startGoL() {
+      let hasMachines=false;
+      for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE){hasMachines=true;break;}}
+      if(!hasMachines)return;
+      for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE)grid[mi].dormant=false;}
+      machineUniX0=0;machineUniY0=0;machineUniX1=W-1;machineUniY1=H-1;
+      machineRunning=true;machineGeneration=0;
+      showEventToast('⚙ MACHINE ACTIVATED','Conway\'s Game of Life — begin!');
+    },
+    stopGoL() {
+      machineRunning=false;machineGeneration=0;
+      for(let mi=0;mi<W*H;mi++){const _t=grid[mi]?.t;if(_t===T.MACHINE||_t===T.MACHINE_DEAD)grid[mi]=null;}
+    },
   };
 }

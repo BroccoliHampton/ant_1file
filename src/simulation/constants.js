@@ -70,6 +70,7 @@ export const GENOME_DEFAULTS = {
 
 export const ELEMENTS = [
   // terrain
+  {cat:'terrain', key:'jelly',    label:'JELLY',     col:'#c055a0', tag:'〰'},
   {cat:'terrain', key:'sand',     label:'SAND',      col:'#c4a35a', tag:'ρ5'},
   {cat:'terrain', key:'clay',     label:'CLAY',      col:'#7a8599', tag:'ρ5'},
   {cat:'terrain', key:'stone',    label:'STONE',     col:'#787878', tag:'ρ7'},
@@ -89,12 +90,13 @@ export const ELEMENTS = [
   {cat:'terrain', key:'fire',     label:'FIRE',      col:'#ff4400', tag:'🔥'},
   {cat:'terrain', key:'lava',     label:'LAVA',      col:'#ff5500', tag:'ρ8'},
   // life
+  {cat:'life', key:'worm',        label:'WORM',         col:'#c85040', tag:'🪱'},
   {cat:'life', key:'ant',         label:'ANT',          col:'#39ff14', tag:'🐜'},
   {cat:'life', key:'queen',       label:'QUEEN ANT',    col:'#ff8800', tag:'👑'},
   {cat:'life', key:'spider',      label:'SPIDER',       col:'#505058', tag:'🕷'},
   {cat:'life', key:'queenSpider', label:'QUEEN SPIDER', col:'#cc44ff', tag:'🕸👑'},
-  {cat:'life', key:'termite',     label:'TERMITE',      col:'#cc8844', tag:'🪲'},
-  {cat:'life', key:'queenTermite',label:'Q.TERMITE',    col:'#ffdd44', tag:'🪲👑'},
+  {cat:'life', key:'termite',     label:'TERMITE',      col:'#d8d8d4', tag:'🪲'},
+  {cat:'life', key:'queenTermite',label:'Q.TERMITE',    col:'#f5ecc0', tag:'🪲👑'},
   {cat:'life', key:'mite',        label:'MITE',         col:'#ff8c00', tag:'🪲'},
   {cat:'life', key:'queenMite',   label:'QUEEN MITE',   col:'#ffdd44', tag:'🪲👑'},
   {cat:'life', key:'plant',       label:'PLANT',        col:'#1a6b1a', tag:'🌿'},
@@ -103,8 +105,8 @@ export const ELEMENTS = [
   {cat:'life', key:'detritus',    label:'DETRITUS',     col:'#806545', tag:'🍂'},
   {cat:'life', key:'fungi',       label:'FUNGI',        col:'#8c32c8', tag:'🍄'},
   {cat:'life', key:'spore',       label:'SPORE',        col:'#a050dc', tag:'✦'},
-  // machine (conway's game of life)
-  {cat:'special', key:'machine',    label:'MACHINE',     col:'#00e5ff', tag:'⚙'},
+  // virus (conway's game of life)
+  {cat:'special', key:'machine',    label:'VIRUS',       col:'#00e5ff', tag:'🦠'},
   // special
   {cat:'special', key:'mutagen',    label:'LIFE SEED',   col:'#cc00ee', tag:'⚛'},
   {cat:'special', key:'cloud',      label:'CLOUD',       col:'#aaccee', tag:'☁'},
