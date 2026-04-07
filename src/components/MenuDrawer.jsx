@@ -8,8 +8,10 @@ export default function MenuDrawer() {
   const seed       = useSimStore(s => s.seed)
   const randomMap  = useSimStore(s => s.randomMap)
   const openLab    = useSimStore(s => s.openLab)
-  const mutRate    = useSimStore(s => s.mutRate)
-  const setMutRate = useSimStore(s => s.setMutRate)
+  const mutRate       = useSimStore(s => s.mutRate)
+  const setMutRate    = useSimStore(s => s.setMutRate)
+  const entropyRate   = useSimStore(s => s.entropyRate)
+  const setEntropyRate = useSimStore(s => s.setEntropyRate)
 
   const close = () => setOpen(false)
 
@@ -41,7 +43,7 @@ export default function MenuDrawer() {
 
           <div className="menu-section">
             <div className="menu-section-label">SETTINGS</div>
-            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
               <span style={{fontSize:'9px',color:'var(--dim)',letterSpacing:'2px',minWidth:'80px'}}>MUTATION</span>
               <input
                 type="range" min="0" max="0.05" step="0.001"
@@ -51,6 +53,18 @@ export default function MenuDrawer() {
               />
               <span style={{fontSize:'9px',color:'var(--text)',minWidth:'28px',textAlign:'right'}}>
                 {mutRate === 0 ? 'OFF' : `${(mutRate * 100).toFixed(1)}%`}
+              </span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              <span style={{fontSize:'9px',color:'var(--dim)',letterSpacing:'2px',minWidth:'80px'}}>ENTROPY</span>
+              <input
+                type="range" min="0" max="1" step="0.05"
+                value={entropyRate}
+                onChange={e => setEntropyRate(parseFloat(e.target.value))}
+                style={{flex:1,accentColor:'#ff6600'}}
+              />
+              <span style={{fontSize:'9px',color:entropyRate===0?'var(--text)':'#ff8844',minWidth:'28px',textAlign:'right'}}>
+                {entropyRate === 0 ? 'OFF' : `${Math.round(entropyRate * 100)}%`}
               </span>
             </div>
           </div>

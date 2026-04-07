@@ -84,9 +84,9 @@ const T = {
   PROG_VOID:56,   // programmable void — destroys any chosen element on contact
   OXYGEN:57,       // released by plants — rises, flammable at high concentration
   // Pharmacy drugs
-  STIMULANT:60,    // Gold Sand + Fire → 2x speed
+  LUCID:60,        // Mutagen + Ice → fractal wave visual
   CHROMADUST:61,   // Mutagen + Water → rainbow jumping
-  NECTAR:62,       // Gold Sand + Water → healing
+  CRANK:62,        // Gold Sand + Fire → fire explosion
   VENOM_BREW:63,   // Acid + Spore → poison
   PHEROMONE:64,    // Detritus + Oil → swarming
   CALCIFIER:65,    // Salt + Stone → armor + slow
@@ -98,6 +98,9 @@ const T = {
   // New substances & creatures
   JELLY:72,        // wiggly solid — falls slowly, wobbles, worms burrow through
   WORM:73,         // snake-like creature — burrows jelly, eats ants/spiders
+  // HighLife bacteria (2×2 pixel scale)
+  BACTERIA:74,
+  BACTERIA_DEAD:75,
   CUSTOM_BASE:100, // custom lab creatures start at 100+
 };
 
@@ -118,8 +121,7 @@ const DENSITY={
   [T.LAVA]:8,[T.STONE]:7,[T.STEAM]:0.1,[T.ICE]:3,
   [T.SMOKE]:0.15,[T.OXYGEN]:0.12,[T.WOOD]:4,[T.ASH]:0.8,[T.ACID]:2.1,[T.GUNPOWDER]:4.5,[T.SALT]:3,
   // Pharmacy drugs (liquid-like)
-  [T.STIMULANT]:2,[T.CHROMADUST]:2,[T.NECTAR]:2,[T.VENOM_BREW]:2,
-  [T.PHEROMONE]:2,[T.CALCIFIER]:2.5,[T.SPORE_BOMB]:2,[T.GIGANTISM]:2,
+  [T.LUCID]:2,[T.CHROMADUST]:2,[T.CRANK]:2,
   [T.JELLY]:4.5,
 };
 
@@ -137,18 +139,12 @@ function killWorm(wid){
 // ================================================================
 const RECIPES={};
 function recipeKey(a,b){return a<b?a+'-'+b:b+'-'+a;}
-RECIPES[recipeKey(T.GOLD_SAND,T.FIRE)]    ={product:T.STIMULANT,ttl:400};
 RECIPES[recipeKey(T.MUTAGEN,T.WATER)]     ={product:T.CHROMADUST,ttl:350};
-RECIPES[recipeKey(T.GOLD_SAND,T.WATER)]   ={product:T.NECTAR,ttl:400};
-RECIPES[recipeKey(T.ACID,T.SPORE)]        ={product:T.VENOM_BREW,ttl:300};
-RECIPES[recipeKey(T.DETRITUS,T.OIL)]      ={product:T.PHEROMONE,ttl:350};
-RECIPES[recipeKey(T.SALT,T.STONE)]        ={product:T.CALCIFIER,ttl:400};
-RECIPES[recipeKey(T.FUNGI,T.GUNPOWDER)]   ={product:T.SPORE_BOMB,ttl:300};
-RECIPES[recipeKey(T.LAVA,T.ICE)]          ={product:T.GIGANTISM,ttl:400};
+RECIPES[recipeKey(T.MUTAGEN,T.ICE)]       ={product:T.LUCID,ttl:300};
+RECIPES[recipeKey(T.GOLD_SAND,T.FIRE)]    ={product:T.CRANK,ttl:250};
 
 const CRAFT_ELIGIBLE=new Set([
-  T.GOLD_SAND,T.FIRE,T.MUTAGEN,T.WATER,T.ACID,T.SPORE,
-  T.DETRITUS,T.OIL,T.SALT,T.STONE,T.GUNPOWDER,T.LAVA,T.ICE,T.FUNGI
+  T.GOLD_SAND,T.FIRE,T.MUTAGEN,T.WATER,T.ICE
 ]);
 
 function tryCraft(x,y,p){
@@ -308,6 +304,7 @@ function mutateGenome(g,rate){
 const strainRegistry=new Map(); // strainId -> {type,genome,color,pop,born,peak}
 let nextStrain=1;
 let mutRate=0; // starts off — user controls via slider
+let entropyRate=0; // chaos event frequency — 0 (off) to 1 (max)
 
 function registerStrain(type,genome,parentId=null){
   const id=nextStrain++;
@@ -348,17 +345,27 @@ let currentTool='draw',currentEl='sand',brushSize=3,isDown=false,speedMult=1;
 // ================================================================
 //  MACHINE (CONWAY'S GAME OF LIFE) STATE
 // ================================================================
-let machineRunning=false;          // GoL simulation is active
-let machineGeneration=0;           // current generation count
-let machineBestGen=0;              // all-time best run (persisted)
-let lastMachinePlacedTick=-999;    // tick when user last placed a machine cell
-const MACHINE_WAKE_DELAY=20;       // sim-ticks after last placement before GoL starts
-const MACHINE_TICK_RATE=24;        // sim-ticks per GoL generation (slower = more watchable)
-const MACHINE_UNIVERSE_PAD=12;     // cells of padding beyond the painted bbox for the GoL universe
-let machineUniX0=0,machineUniY0=0,machineUniX1=W-1,machineUniY1=H-1; // universe bounds (set at activation)
-let machinePlacedX=-1,machinePlacedY=-1; // exact position of last placed machine cell
-let machineDrawnThisStroke=false; // prevents multiple cells per drag gesture
+let machineRunning=false;
+let machineGeneration=0;
+let machineBestGen=0;
+let lastMachinePlacedTime=0;       // Date.now() at last placement; 0=never placed
+const MACHINE_TICK_RATE=24;
+const MACHINE_ACTIVATION_DELAY=5000; // ms after last placement before auto-start
+let machineUniX0=0,machineUniY0=0,machineUniX1=W-1,machineUniY1=H-1;
 try{machineBestGen=parseInt(localStorage.getItem('ant1_machineBest')||'0');}catch(e){}
+
+// ================================================================
+//  BACTERIA (HIGHLIFE — B36/S23) STATE
+// ================================================================
+let bacteriaRunning=false;
+let bacteriaGeneration=0;
+let bacteriaBestGen=0;
+let lastBacteriaPlacedTime=0;
+let bacteriaWaveTick=0;            // increments each sim tick — drives color wave
+const BACTERIA_TICK_RATE=28;
+const BACTERIA_ACTIVATION_DELAY=5000;
+let bacteriaUniX0=0,bacteriaUniY0=0,bacteriaUniX1=W-1,bacteriaUniY1=H-1;
+try{bacteriaBestGen=parseInt(localStorage.getItem('ant1_bacteriaBest')||'0');}catch(e){}
 
 // ================================================================
 //  HELPERS
@@ -829,7 +836,7 @@ function stepTermite(x,y,p){
   if(p.buff?.type==='chromadust'&&Math.random()<0.3){const jx=x+Math.floor((Math.random()-0.5)*6),jy=y+Math.floor((Math.random()-0.5)*6);if(inB(jx,jy)&&!get(jx,jy)){swap(x,y,jx,jy);return;}}
   const tvt=p.variant?.traits||[];
   const speed=p.g[1]/255,appetite=p.g[2]/255,aggression=p.g[3]/255;
-  const woodConsumeChance=tvt.includes('fast_eat_wood')?0.45:0.25;
+  const woodConsumeChance=tvt.includes('fast_eat_wood')?0.20:0.10;
   if(p.qcd>0)p.qcd--;
   // Drop a termite queen near (atX,atY) — called on wood eat and spontaneously
   function tryDropQueenTermite(atX,atY){
@@ -882,14 +889,14 @@ function stepTermite(x,y,p){
   for(const[nx,ny] of nbrs){
     const np=get(nx,ny);if(!np)continue;
     // Wood: primary food source — gnaw from adjacent cells each tick
-    if(np.t===T.WOOD&&Math.random()<appetite*0.35){
+    if(np.t===T.WOOD&&Math.random()<appetite*0.18){
       p.energy+=30;
       // Small chance to fully consume the wood cell (leave space)
-      if(Math.random()<0.08){grid[idx(nx,ny)]=null;}
+      if(Math.random()<0.05){grid[idx(nx,ny)]=null;}
       tryDropQueenTermite(nx,ny);
       break;
     }
-    if((np.t===T.PLANT||np.t===T.PLANT_WALL)&&Math.random()<appetite*0.3){p.energy+=40;if(np.t===T.PLANT)popDecr(np);grid[idx(nx,ny)]=null;break;}
+    // Termites traverse plant but do NOT eat it
     if(np.t===T.FUNGI&&!tvt.includes('fungus_friend')&&Math.random()<appetite*0.25){p.energy+=30;popDecr(np);grid[idx(nx,ny)]=null;break;}
     if(np.t===T.MITE&&Math.random()<appetite*0.5){p.energy+=15;grid[idx(nx,ny)]=null;break;}
     if((np.t===T.DETRITUS||np.t===T.ASH)&&Math.random()<appetite*0.15){p.energy+=8;grid[idx(nx,ny)]=null;break;}
@@ -914,7 +921,7 @@ function stepTermite(x,y,p){
     const moveCandidates=[],digCandidates=[];
     for(const[nx,ny] of nbrs){
       const np=get(nx,ny);
-      const isOpen=(!np)||np.t===T.WOOD||np.t===T.DETRITUS;
+      const isOpen=(!np)||np.t===T.WOOD||np.t===T.DETRITUS||np.t===T.PLANT||np.t===T.PLANT_WALL;
       if(isOpen){
         let score=1;let wc=0;
         for(const[ax,ay] of getNeighbors(nx,ny)){if(ax===x&&ay===y)continue;const ap=get(ax,ay);if(ap&&(isWall(ap.t)||ap.t===T.CLAY_HARD||ap.t===T.WOOD))wc++;}
@@ -938,11 +945,14 @@ function stepTermite(x,y,p){
       else{
         const dest=get(mx,my);
         if(dest?.t===T.WOOD){
-          // Traverse or consume wood (like ant + plant)
+          // Traverse or consume wood
           if(Math.random()<woodConsumeChance){
             p.energy+=20;moveTermiteTo(mx,my,{consumeWood:true});
             tryDropQueenTermite(mx,my);
           } else{moveTermiteTo(mx,my,{consumeWood:false});tryDropQueenTermite(mx,my);}
+        } else if(dest?.t===T.PLANT||dest?.t===T.PLANT_WALL){
+          // Traverse plant without eating it
+          swap(x,y,mx,my);
         } else {
           if(dest?.t===T.DETRITUS)grid[idx(mx,my)]=null;
           moveTermiteTo(mx,my);
@@ -973,12 +983,12 @@ function stepTermite(x,y,p){
 function stepQueenTermite(x,y,p){
   p.age++;
   processBuff(p);
-  // Queen termites absorb energy from surrounding wood — self-sustaining inside logs
+  // Queen termites absorb energy from surrounding wood — must be near wood or fed by workers
   const qnbrs=getNeighbors(x,y);
   let woodBonus=0;
-  for(const[nx,ny] of qnbrs){if(get(nx,ny)?.t===T.WOOD)woodBonus+=0.2;}
-  p.energy=Math.min(255,p.energy+0.15+woodBonus);
-  p.energy-=0.12;
+  for(const[nx,ny] of qnbrs){if(get(nx,ny)?.t===T.WOOD)woodBonus+=0.25;}
+  p.energy=Math.min(255,p.energy+woodBonus);
+  p.energy-=0.14; // starves without wood adjacency or worker feeding
   if(p.energy<=0){p.hp-=2;}
   if(p.hp<=0){set(x,y,null);popDecr(p);return;}
   if(envDamage(x,y,p))return;
@@ -1719,14 +1729,122 @@ function stepDrug(x,y,p,buffType,buffTTL){
   }
   tryFlow(x,y);
 }
-function stepStimulant(x,y,p){stepDrug(x,y,p,'stimulant',600);}
-function stepChromadust(x,y,p){stepDrug(x,y,p,'chromadust',500);}
-function stepNectar(x,y,p){stepDrug(x,y,p,'nectar',400);}
-function stepVenomBrew(x,y,p){stepDrug(x,y,p,'venom',300);}
-function stepPheromone(x,y,p){stepDrug(x,y,p,'pheromone',400);}
-function stepCalcifier(x,y,p){stepDrug(x,y,p,'calcifier',500);}
-function stepSporeBomb(x,y,p){stepDrug(x,y,p,'sporebomb',300);}
-function stepGigantism(x,y,p){stepDrug(x,y,p,'gigantism',600);}
+function stepLucid(x,y,p){
+  p.ttl=(p.ttl||200)-1;
+  if(p.ttl<=0){grid[idx(x,y)]=null;return;}
+  for(const[nx,ny] of getNeighbors(x,y)){
+    const np=get(nx,ny);
+    if(np?.g||np?.customType!==undefined){
+      if(lucidSources.length<MAX_LUCID_SOURCES)
+        lucidSources.push({x:nx,y:ny,age:0,hue:Math.floor(Math.random()*360)});
+      grid[idx(x,y)]=null;return;
+    }
+  }
+  tryFlow(x,y);
+}
+function createChromaCreature(hue){
+  const archs=['creature','creature','creature','plant','fungi'];
+  const sizes=[{id:'tiny',name:'Tiny',hp:30,energy:80,speed:2.0},{id:'small',name:'Small',hp:60,energy:120,speed:1.5},{id:'medium',name:'Medium',hp:100,energy:150,speed:1.0},{id:'large',name:'Large',hp:180,energy:200,speed:0.6}];
+  const movs=[{id:'walker',name:'Walker',icon:'🚶'},{id:'flyer',name:'Flyer',icon:'🦋'},{id:'swimmer',name:'Swimmer',icon:'🐟'},{id:'burrower',name:'Burrower',icon:'🐛'},{id:'climber',name:'Climber',icon:'🦎'},{id:'swarmer',name:'Swarmer',icon:'🐝'}];
+  const diets=[{id:'omnivore',name:'Omnivore',targets:[T.PLANT,T.FUNGI,T.DETRITUS,T.ASH],icon:'🍽️'},{id:'herbivore',name:'Herbivore',targets:[T.PLANT,T.SEED],icon:'🌿'},{id:'fungivore',name:'Fungivore',targets:[T.FUNGI,T.SPORE],icon:'🍄'},{id:'detritivore',name:'Detritivore',targets:[T.DETRITUS,T.ASH],icon:'🍂'},{id:'photosynthetic',name:'Photosynthetic',targets:[],icon:'☀️'},{id:'pyrotroph',name:'Pyrotroph',targets:[T.LAVA,T.FIRE],icon:'🔥'},{id:'cryotroph',name:'Cryotroph',targets:[T.ICE,T.WATER],icon:'❄️'}];
+  const repros=[{id:'budding',name:'Budding',rate:0.02},{id:'spore',name:'Spore',rate:0.008},{id:'cloning',name:'Cloning',rate:0.015},{id:'flowering',name:'Flowering',rate:0.005}];
+  const icons=['🐜','🐛','🦗','🦟','🐞','🦂','🦀','🐙','🦑','🌸','🌺','🍄','👾','👽','🤖','💀','🔮','💎','⭐','❄️'];
+  const pick=a=>a[Math.floor(Math.random()*a.length)];
+  const elemDefault={fire:'die',lava:'die',water:'ignore',ice:'ignore',acid:'die',salt:'ignore',smoke:'ignore',steam:'ignore',sand:'ignore',clay:'ignore',wood:'ignore',detritus:'ignore',oil:'ignore',gunpowder:'ignore'};
+  const arch=pick(archs);
+  const aggr=arch==='creature'?Math.random():0;
+  const reproRate=0.2+Math.random()*0.6;
+  const size=pick(sizes);
+  const mov=arch==='creature'?pick(movs):{id:'sessile',name:'Sessile',icon:'🌿'};
+  const diet=arch==='plant'?{id:'photosynthetic',name:'Photosynthetic',targets:[],icon:'☀️'}:arch==='fungi'?{id:'detritivore',name:'Detritivore',targets:[T.DETRITUS,T.ASH],icon:'🍂'}:pick(diets);
+  const repro=arch==='plant'?pick([repros[0],repros[3]]):arch==='fungi'?repros[1]:pick(repros);
+  const preyTypes=arch==='creature'&&aggr>0.3?[pick([T.ANT,T.SPIDER,T.MITE,T.TERMITE,T.FUNGI,T.PLANT])]:[];
+  const specials=Math.random()<0.5?[pick(SPECIAL_OPTIONS||[])]:[];
+  const c={
+    id:nextCustomId,
+    name:`Chroma-${hue}`,
+    icon:pick(icons),
+    hue, sat:70, lit:40,
+    archetype:arch,
+    movement:mov,
+    diet,
+    reproduction:{...repro,rate:0.004+reproRate*0.02},
+    size,
+    specials:specials.filter(Boolean),
+    tolerances:[],
+    elemBehaviors:{...elemDefault},
+    preyTypes,
+    includesCustomPrey:false,
+    allyTypes:[],
+    huntedByTypes:[],
+    aggression:aggr,
+    fear:Math.random()*0.5,
+    attackId:pick(['bite','venom','acid_spit','fire_breath','crush']),
+    lightReq:arch==='fungi'?0.1:0.3,
+    spreadSpeed:arch==='plant'||arch==='fungi'?0.3+Math.random()*0.4:0.1,
+    flowerEmit:arch==='plant'?pick(['none','spore','seed','smoke']):'none',
+    genome:Array(6).fill(0).map((_,i)=>i===3?Math.floor(aggr*255):i===5?Math.floor(reproRate*255):Math.floor(100+Math.random()*100)),
+    created:tickCount,
+  };
+  c.interactions=generateInteractions(c);
+  customCreatures.set(c.id,c);
+  nextCustomId++;
+  POP[c.id]=0; POP[c.id+100]=0;
+  POP_MAX[c.id]=800; POP_MAX[c.id+100]=10;
+  POP_HISTORY[c.id]=[];
+  updateCustomList();
+  return {id:c.id, size:c.size};
+}
+function stepChromadust(x,y,p){
+  p.ttl=(p.ttl||200)-1;
+  if(p.ttl<=0){
+    const spec=chromaStrains.get(p.hue);
+    if(spec){
+      const cell=spawnCustomCell(spec.id,x,y,false);
+      if(cell){grid[idx(x,y)]=cell;POP[spec.id]=(POP[spec.id]||0)+1;}
+      else grid[idx(x,y)]=null;
+    } else {
+      grid[idx(x,y)]=null;
+    }
+    return;
+  }
+  tryFlow(x,y);
+}
+function stepCrank(x,y,p){
+  p.ttl=(p.ttl||200)-1;
+  if(p.ttl<=0){grid[idx(x,y)]=null;return;}
+  for(const[nx,ny] of getNeighbors(x,y)){
+    const np=get(nx,ny);
+    if(np?.g||np?.customType!==undefined){
+      const angle=Math.random()*Math.PI*2;
+      const cdx=Math.cos(angle);const cdy=Math.sin(angle);
+      const dist=25+Math.floor(Math.random()*30);
+      grid[idx(nx,ny)]=null;
+      // Sparse fire trail
+      for(let i=1;i<dist;i++){
+        const tx=Math.round(nx+cdx*i),ty=Math.round(ny+cdy*i);
+        if(!inB(tx,ty))break;
+        if(Math.random()<0.25) grid[idx(tx,ty)]={t:T.FIRE,age:0,ttl:10+Math.floor(Math.random()*15)};
+      }
+      // 5% chance to explode at landing, otherwise just land
+      if(Math.random()<0.05){
+        const lx=Math.round(nx+cdx*dist),ly=Math.round(ny+cdy*dist);
+        if(inB(lx,ly)){
+          for(let ey=ly-3;ey<=ly+3;ey++) for(let ex=lx-3;ex<=lx+3;ex++){
+            if(inB(ex,ey)) grid[idx(ex,ey)]={t:T.FIRE,age:0,ttl:30+Math.floor(Math.random()*40)};
+          }
+        }
+      }
+      grid[idx(x,y)]=null;return;
+    }
+  }
+  tryFlow(x,y);
+}
+function stepVenomBrew(x,y,p){grid[idx(x,y)]=null;}
+function stepPheromone(x,y,p){grid[idx(x,y)]=null;}
+function stepCalcifier(x,y,p){grid[idx(x,y)]=null;}
+function stepSporeBomb(x,y,p){grid[idx(x,y)]=null;}
+function stepGigantism(x,y,p){grid[idx(x,y)]=null;}
 
 // ================================================================
 //  CLOUD — water spout, queen of water
@@ -2190,17 +2308,19 @@ function stepParticle(x,y){
   if(p.t===T.SALT){stepSalt(x,y,p);return;}
   if(p.t===T.STONE){stepStone(x,y,p);return;}
   // Pharmacy drugs
-  if(p.t===T.STIMULANT){stepStimulant(x,y,p);return;}
+  if(p.t===T.LUCID){stepLucid(x,y,p);return;}
   if(p.t===T.CHROMADUST){stepChromadust(x,y,p);return;}
-  if(p.t===T.NECTAR){stepNectar(x,y,p);return;}
+  if(p.t===T.CRANK){stepCrank(x,y,p);return;}
   if(p.t===T.VENOM_BREW){stepVenomBrew(x,y,p);return;}
   if(p.t===T.PHEROMONE){stepPheromone(x,y,p);return;}
   if(p.t===T.CALCIFIER){stepCalcifier(x,y,p);return;}
   if(p.t===T.SPORE_BOMB){stepSporeBomb(x,y,p);return;}
   if(p.t===T.GIGANTISM){stepGigantism(x,y,p);return;}
-  // Machine cells: MACHINE is static (stepped by GoL tick); MACHINE_DEAD decays
+  // Machine/Bacteria: static cells stepped by GoL ticks; _DEAD variants decay
   if(p.t===T.MACHINE)return;
   if(p.t===T.MACHINE_DEAD){stepMachineDead(x,y,p);return;}
+  if(p.t===T.BACTERIA)return;
+  if(p.t===T.BACTERIA_DEAD){stepBacteriaDead(x,y,p);return;}
 
   // Plant wall — biological, needs its own step (decay, detritus)
 
@@ -2432,9 +2552,25 @@ function getColor(p,x,y){
     case T.SMOKE: {const a=Math.min(1,(p.ttl||60)/60);r=g=b=60+(a*50)|0;break;}
     case T.OXYGEN: {const a=Math.min(1,(p.ttl||120)/120);const fl=Math.random()<0.15;r=fl?140:80+(a*40)|0;g=fl?220:160+(a*50)|0;b=fl?255:220+(a*30)|0;break;}
     // Pharmacy drugs
-    case T.STIMULANT:{const fl=Math.random();r=255;g=fl<0.5?140:180;b=0;break;}
-    case T.CHROMADUST:{const h=(p.age*8)%360;[r,g,b]=hslToRgb(h,90,55);break;}
-    case T.NECTAR:{const fl=Math.random()<0.2;r=fl?255:220;g=fl?220:190;b=fl?80:0;break;}
+    case T.LUCID:{const ph=(p.age*18)%360;if(Math.random()<0.25){r=255;g=255;b=255;}else{const li=55+Math.random()*20;[r,g,b]=hslToRgb(ph,100,li);}break;}
+    case T.CHROMADUST:{
+      const ttl=p.ttl||200;
+      const cycleH=(p.age*14)%360; // fast rainbow while falling
+      let h;
+      if(ttl>50){
+        h=cycleH; // full rainbow cycle
+      } else {
+        // blend into colony hue over last 50 ticks
+        const t=ttl/50;
+        const ch=p.hue||0;
+        const diff=((ch-cycleH+540)%360)-180;
+        h=(cycleH+diff*(1-t)+360)%360;
+      }
+      if(Math.random()<0.18){r=255;g=255;b=255;}
+      else{const lit=50+Math.random()*20;[r,g,b]=hslToRgb(h,95,lit);}
+      break;
+    }
+    case T.CRANK:{const fl=Math.random()<0.3;r=255;g=fl?200:80;b=fl?60:20;break;}
     case T.VENOM_BREW:{const fl=Math.random();r=fl<0.5?100:60;g=fl<0.3?200:160;b=fl<0.5?80:180;break;}
     case T.PHEROMONE:{const fl=Math.random()<0.3;r=fl?220:180;g=fl?160:120;b=fl?40:20;break;}
     case T.CALCIFIER:{const v=Math.floor(Math.random()*15);r=140+v;g=140+v;b=150+v;break;}
@@ -2530,6 +2666,44 @@ function getColor(p,x,y){
     r=Math.floor(220*fade);g=Math.floor(20*fade);b=Math.floor(20*fade);
     return 0xFF000000|(b<<16)|(g<<8)|r;
   }
+  if(p.t===T.BACTERIA){
+    if(p.dormant){r=10;g=50;b=25;}
+    else{
+      // Bioluminescent diagonal wave: phase = spatial position + animated tick
+      const phase=((x+y)*2+bacteriaWaveTick*2)*Math.PI/180;
+      const wave=Math.sin(phase); // -1 to 1
+      const hue=130+wave*45;      // 85-175: yellow-green ↔ cyan
+      const lit=48+wave*12;       // 36-60 lightness — pulses brightness
+      const[cr,cg,cb]=hslToRgb(hue,95,lit);
+      if(Math.random()<0.06){r=180;g=255;b=180;} // green sparkle
+      else{r=cr;g=cg;b=cb;}
+    }
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  if(p.t===T.BACTERIA_DEAD){
+    const fade=Math.max(0,1-(p.age/5));
+    r=Math.floor(20*fade);g=Math.floor(200*fade);b=Math.floor(80*fade);
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  // Lucid wave overlay
+  if(lucidSources.length>0){
+    let bestI=0,bestH=0;
+    for(const src of lucidSources){
+      const dx=x-src.x,dy=y-src.y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      const ageFade=Math.max(0,1-src.age/LUCID_LIFETIME);
+      const wave=(Math.sin((dist*0.5-src.age*0.18)*Math.PI)*0.5+0.5);
+      const intensity=wave*ageFade*(1-dist/(W*1.2));
+      if(intensity>bestI){bestI=intensity;bestH=(src.hue+dist*12+src.age*4)%360;}
+    }
+    if(bestI>0.25){
+      const[lr,lg,lb]=hslToRgb(bestH,100,55);
+      const blend=bestI*0.65;
+      r=Math.min(255,r+Math.round(lr*blend));
+      g=Math.min(255,g+Math.round(lg*blend));
+      b=Math.min(255,b+Math.round(lb*blend));
+    }
+  }
   return 0xFF000000|(b<<16)|(g<<8)|r;
 }
 
@@ -2545,17 +2719,36 @@ function endMachineRun(){
   if(!machineRunning)return;
   machineRunning=false;
   const gen=machineGeneration;
-  // Clean up lingering MACHINE_DEAD cells
   for(let i=0;i<W*H;i++){if(grid[i]?.t===T.MACHINE_DEAD)grid[i]=null;}
   if(gen>machineBestGen){
     machineBestGen=gen;
     try{localStorage.setItem('ant1_machineBest',String(machineBestGen));}catch(e){}
-    showEventToast('⚙ NEW MACHINE RECORD',`${gen} generations — new best!`);
+    showEventToast('🦠 VIRUS RECORD',`${gen} generations — new best!`);
   } else {
-    showEventToast('⚙ MACHINE HALTED',`Run ended at gen ${gen} · Best: ${machineBestGen}`);
+    showEventToast('🦠 VIRUS HALTED',`Run ended at gen ${gen} · Best: ${machineBestGen}`);
   }
-  lastMachinePlacedTick=-999;
+  lastMachinePlacedTime=0;
   machineUniX0=0;machineUniY0=0;machineUniX1=W-1;machineUniY1=H-1;
+}
+
+function stepBacteriaDead(x,y,p){
+  if(p.age>=5)grid[idx(x,y)]=null;
+}
+
+function endBacteriaRun(){
+  if(!bacteriaRunning)return;
+  bacteriaRunning=false;
+  const gen=bacteriaGeneration;
+  for(let i=0;i<W*H;i++){if(grid[i]?.t===T.BACTERIA_DEAD)grid[i]=null;}
+  if(gen>bacteriaBestGen){
+    bacteriaBestGen=gen;
+    try{localStorage.setItem('ant1_bacteriaBest',String(bacteriaBestGen));}catch(e){}
+    showEventToast('🧫 BACTERIA RECORD',`${gen} gens — new best!`);
+  } else {
+    showEventToast('🧫 BACTERIA HALTED',`Run ended at gen ${gen} · Best: ${bacteriaBestGen}`);
+  }
+  lastBacteriaPlacedTime=0;
+  bacteriaUniX0=0;bacteriaUniY0=0;bacteriaUniX1=W-1;bacteriaUniY1=H-1;
 }
 
 // ================================================================
@@ -2742,6 +2935,135 @@ function stepMachineGoL(){
 }
 
 // ================================================================
+//  BACTERIA — HighLife (B36/S23) on 2×2 coarse grid
+// ================================================================
+function stepBacteriaGoL(){
+  const CW=Math.floor(W/2),CH=Math.floor(H/2);
+
+  // Identify live coarse cells (2×2 block is "alive" if any fine cell has T.BACTERIA)
+  const liveCoarse=new Set();
+  for(let cy=0;cy<CH;cy++){
+    for(let cx=0;cx<CW;cx++){
+      const gx=cx*2,gy=cy*2;
+      if(grid[idx(gx,gy)]?.t===T.BACTERIA||grid[idx(gx+1,gy)]?.t===T.BACTERIA||
+         grid[idx(gx,gy+1)]?.t===T.BACTERIA||grid[idx(gx+1,gy+1)]?.t===T.BACTERIA){
+        liveCoarse.add(cy*CW+cx);
+      }
+    }
+  }
+  if(liveCoarse.size===0){endBacteriaRun();return;}
+  bacteriaGeneration++;
+
+  // Candidate set: live cells + their 8 coarse neighbors
+  const toEval=new Set(liveCoarse);
+  for(const ci of liveCoarse){
+    const cx=ci%CW,cy=Math.floor(ci/CW);
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      if(dx===0&&dy===0)continue;
+      const ncx=cx+dx,ncy=cy+dy;
+      if(ncx>=0&&ncx<CW&&ncy>=0&&ncy<CH)toEval.add(ncy*CW+ncx);
+    }
+  }
+
+  const deaths=[],births=[];
+  for(const ci of toEval){
+    const cx=ci%CW,cy=Math.floor(ci/CW);
+    const isAlive=liveCoarse.has(ci);
+    let liveN=0,hazard=false;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      if(dx===0&&dy===0)continue;
+      const ncx=cx+dx,ncy=cy+dy;
+      if(ncx<0||ncx>=CW||ncy<0||ncy>=CH)continue;
+      if(liveCoarse.has(ncy*CW+ncx)){
+        liveN++;
+      } else {
+        const gx2=ncx*2,gy2=ncy*2;
+        for(let by=0;by<2&&!hazard;by++)for(let bx=0;bx<2&&!hazard;bx++){
+          const n=get(gx2+bx,gy2+by);
+          if(n&&(n.t===T.WATER||n.t===T.FIRE||n.t===T.LAVA||n.t===T.ACID||n.t===T.STEAM||n.t===T.ICE))hazard=true;
+        }
+      }
+    }
+    if(isAlive){
+      if(hazard||liveN<2||liveN>3)deaths.push(ci);
+    } else {
+      // HighLife: born on 3 OR 6 neighbors (vs standard GoL's 3 only)
+      if((liveN===3||liveN===6)&&!hazard){
+        const inUni=cx*2>=bacteriaUniX0&&cx*2<=bacteriaUniX1&&cy*2>=bacteriaUniY0&&cy*2<=bacteriaUniY1;
+        if(inUni)births.push(ci);
+      }
+    }
+  }
+
+  // Deaths: mark all 4 fine cells as BACTERIA_DEAD
+  for(const ci of deaths){
+    const cx=ci%CW,cy=Math.floor(ci/CW),gx=cx*2,gy=cy*2;
+    for(let by=0;by<2;by++)for(let bx=0;bx<2;bx++){
+      const fi=idx(gx+bx,gy+by);
+      if(grid[fi]?.t===T.BACTERIA)grid[fi]={t:T.BACTERIA_DEAD,age:0};
+    }
+  }
+  // Births: fill 2×2 block — allow into empty or BACTERIA_DEAD cells (dead cells don't block births)
+  for(const ci of births){
+    const cx=ci%CW,cy=Math.floor(ci/CW),gx=cx*2,gy=cy*2;
+    let ok=true;
+    for(let by=0;by<2&&ok;by++)for(let bx=0;bx<2&&ok;bx++){
+      const fc=grid[idx(gx+bx,gy+by)];
+      if(fc&&fc.t!==T.BACTERIA_DEAD)ok=false;
+    }
+    if(ok){
+      for(let by=0;by<2;by++)for(let bx=0;bx<2;bx++){
+        grid[idx(gx+bx,gy+by)]={t:T.BACTERIA,age:0};
+      }
+    }
+  }
+
+  // Bacteria infect organic neighbours (lower rate than virus)
+  const _isOrganic=t=>(t===T.ANT||t===T.QUEEN||t===T.SPIDER||t===T.QUEEN_SPIDER||
+    t===T.TERMITE||t===T.QUEEN_TERMITE||t===T.MITE||t===T.QUEEN_MITE||
+    t===T.PLANT||t===T.PLANT_WALL||t===T.FUNGI||t===T.WEB||
+    t===T.DETRITUS||t===T.SPORE||t===T.SEED||t===T.EGG||t===T.WOOD);
+  const _isTerrainKill=t=>(t===T.SAND||t===T.GOLD_SAND||t===T.WHITE_SAND||
+    t===T.SALT||t===T.GUNPOWDER||t===T.ASH);
+  const INFECT=0.04,SPREAD=0.12;
+  const infectQueue=[],infected=new Set();
+  for(const ci of liveCoarse){
+    const cx=ci%CW,cy=Math.floor(ci/CW),gx=cx*2,gy=cy*2;
+    for(let by=0;by<2;by++)for(let bx=0;bx<2;bx++){
+      const fi=idx(gx+bx,gy+by);
+      if(grid[fi]?.t!==T.BACTERIA)continue;
+      const fx=gx+bx,fy=gy+by;
+      let terrainDeath=false;
+      for(const[nx,ny] of getNeighbors(fx,fy)){
+        const ni=idx(nx,ny),n=grid[ni];
+        if(!n)continue;
+        if(_isTerrainKill(n.t)){terrainDeath=true;continue;}
+        if(_isOrganic(n.t)&&Math.random()<INFECT)infectQueue.push(ni);
+      }
+      if(terrainDeath&&grid[fi]?.t===T.BACTERIA)grid[fi]={t:T.BACTERIA_DEAD,age:0};
+    }
+  }
+  while(infectQueue.length){
+    const ni=infectQueue.shift();
+    if(infected.has(ni))continue;
+    const n=grid[ni];
+    if(!n||!_isOrganic(n.t))continue;
+    infected.add(ni);
+    if(n.g)popDecr(n);
+    grid[ni]={t:T.BACTERIA,age:0};
+    const cx2=ni%W,cy2=Math.floor(ni/W);
+    for(const[nx,ny] of getNeighbors(cx2,cy2)){
+      const nni=idx(nx,ny);
+      if(!infected.has(nni)&&_isOrganic(grid[nni]?.t)&&Math.random()<SPREAD)infectQueue.push(nni);
+    }
+  }
+
+  let stillAlive=false;
+  for(let i=0;i<W*H;i++){if(grid[i]?.t===T.BACTERIA){stillAlive=true;break;}}
+  if(!stillAlive)endBacteriaRun();
+}
+
+// ================================================================
 //  SIMULATION LOOP
 // ================================================================
 let lastTime=0,stepAccum=0,updateOrder=[],stepsSince=0,uiFrame=0;
@@ -2823,10 +3145,228 @@ function simStep(){
     for(const p of grid){if(p?.sid){const s=strainRegistry.get(p.sid);if(s){s.pop++;s.peak=Math.max(s.peak,s.pop);}}}
   }
 
-  // --- Machine (GoL) ---
+  // --- VIRUS (GoL) — auto-activate 5s after last placement ---
+  bacteriaWaveTick++;
+  if(!machineRunning&&lastMachinePlacedTime>0&&Date.now()-lastMachinePlacedTime>=MACHINE_ACTIVATION_DELAY){
+    let hm=false;for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE){hm=true;break;}}
+    if(hm){
+      for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE)grid[mi].dormant=false;}
+      machineUniX0=0;machineUniY0=0;machineUniX1=W-1;machineUniY1=H-1;
+      machineRunning=true;machineGeneration=0;
+      showEventToast('🦠 VIRUS ACTIVATED','Conway\'s Game of Life — begin!');
+    }
+    lastMachinePlacedTime=0;
+  }
   if(machineRunning&&tickCount%MACHINE_TICK_RATE===0)stepMachineGoL();
 
+  // --- BACTERIA (HighLife) — auto-activate 5s after last placement ---
+  if(!bacteriaRunning&&lastBacteriaPlacedTime>0&&Date.now()-lastBacteriaPlacedTime>=BACTERIA_ACTIVATION_DELAY){
+    let hb=false;for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.BACTERIA){hb=true;break;}}
+    if(hb){
+      for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.BACTERIA)grid[mi].dormant=false;}
+      bacteriaUniX0=0;bacteriaUniY0=0;bacteriaUniX1=W-1;bacteriaUniY1=H-1;
+      bacteriaRunning=true;bacteriaGeneration=0;
+      showEventToast('🧫 BACTERIA ACTIVATED','HighLife — replicators awaken!');
+    }
+    lastBacteriaPlacedTime=0;
+  }
+  if(bacteriaRunning&&tickCount%BACTERIA_TICK_RATE===0)stepBacteriaGoL();
+
+  // Age lucid wave sources
+  for(let i=lucidSources.length-1;i>=0;i--){
+    lucidSources[i].age++;
+    if(lucidSources[i].age>LUCID_LIFETIME)lucidSources.splice(i,1);
+  }
+  if(entropyRate>0)stepEntropy();
   tickCount++;
+}
+
+// ================================================================
+//  ENTROPY — chaos event system
+//  Events are grouped into tiers by frequency and impact.
+// ================================================================
+function stepEntropy(){
+  const r=entropyRate; // 0-1
+  function rndCell(){return[Math.floor(Math.random()*W),Math.floor(Math.random()*H)];}
+  function rndEmpty(){let[x,y]=rndCell();return(!get(x,y))?[x,y]:null;}
+
+  // ── TIER 1: Atmospheric (spark, drip, gust) ──────────────────────
+  // fire spark, water drip, smoke puff, steam vent, ash scatter, detritus deposit
+  if(Math.random()<r*0.14){
+    const pos=rndEmpty();if(pos){
+      const[x,y]=pos;
+      const pick=Math.random();
+      if(pick<0.25)      grid[idx(x,y)]={t:T.FIRE,age:0,ttl:15+Math.floor(Math.random()*25)};
+      else if(pick<0.45) grid[idx(x,y)]={t:T.SMOKE,age:0,ttl:40+Math.floor(Math.random()*40)};
+      else if(pick<0.60) grid[idx(x,y)]={t:T.STEAM,age:0,ttl:40+Math.floor(Math.random()*50)};
+      else if(pick<0.75) grid[idx(x,y)]={t:T.WATER,age:0};
+      else if(pick<0.87) grid[idx(x,y)]={t:T.DETRITUS,age:0};
+      else               grid[idx(x,y)]={t:T.ASH,age:0};
+    }
+  }
+
+  // ── TIER 2: Chemical (acid, lava, ice, drugs) ─────────────────────
+  if(Math.random()<r*0.06){
+    const pos=rndEmpty();if(pos){
+      const[x,y]=pos;
+      const pick=Math.random();
+      if(pick<0.18)      grid[idx(x,y)]={t:T.ACID,age:0,ttl:200+Math.floor(Math.random()*150)};
+      else if(pick<0.32) grid[idx(x,y)]={t:T.OIL,age:0};
+      else if(pick<0.44) grid[idx(x,y)]={t:T.LAVA,age:0,ttl:300+Math.floor(Math.random()*200)};
+      else if(pick<0.55) grid[idx(x,y)]={t:T.ICE,age:0,ttl:600+Math.floor(Math.random()*400)};
+      else if(pick<0.65) grid[idx(x,y)]={t:T.SALT,age:0};
+      else if(pick<0.73) grid[idx(x,y)]={t:T.MUTAGEN,age:0};
+      else if(pick<0.82) grid[idx(x,y)]={t:T.LUCID,age:0,ttl:200};
+      else if(pick<0.91) grid[idx(x,y)]={t:T.CRANK,age:0,ttl:200};
+      else{
+        // Chromadust shower (3-6 particles from top)
+        const count=3+Math.floor(Math.random()*4);
+        for(let i=0;i<count;i++){
+          const cx=Math.floor(Math.random()*W),cy=Math.floor(Math.random()*8);
+          if(inB(cx,cy)&&!get(cx,cy)){
+            const hue=Math.floor(Math.random()*12)*30;
+            if(!chromaStrains.has(hue))chromaStrains.set(hue,createChromaCreature(hue));
+            grid[idx(cx,cy)]={t:T.CHROMADUST,age:0,hue,ttl:150+Math.floor(Math.random()*80)};
+          }
+        }
+      }
+    }
+  }
+
+  // ── TIER 3: Biological (creature/plant/fungi spawn) ───────────────
+  if(Math.random()<r*0.035){
+    const pos=rndEmpty();if(pos){
+      const[x,y]=pos;
+      const genome=Array(6).fill(0).map(()=>100+Math.floor(Math.random()*100));
+      const pick=Math.random();
+      let t2=null;
+      if(pick<0.22)      t2=T.ANT;
+      else if(pick<0.38) t2=T.SPIDER;
+      else if(pick<0.50) t2=T.MITE;
+      else if(pick<0.62) t2=T.TERMITE;
+      else if(pick<0.72) t2=T.FUNGI;
+      else if(pick<0.80) t2=T.PLANT;
+      else if(pick<0.86) t2=T.SEED;
+      else if(pick<0.91){grid[idx(x,y)]={t:T.SPORE,age:0,ttl:180};t2=null;}
+      else if(pick<0.96){grid[idx(x,y)]={t:T.ALGAE,age:0};t2=null;}
+      else               {grid[idx(x,y)]={t:T.EGG,age:0,g:genome,hp:20,energy:80};t2=null;}
+      if(t2){
+        const cell=agentWithStrain(t2,genome,null,{energy:120});
+        if(cell){grid[idx(x,y)]=cell;popIncr(cell);}
+      }
+    }
+  }
+
+  // ── TIER 4: Cosmic events (rare, high-impact) ─────────────────────
+  if(Math.random()<r*0.010){
+    const cosmic=Math.random();
+
+    if(cosmic<0.14){
+      // ☄️ Meteorite — lava core + fire blast radius
+      const[cx,cy]=rndCell();
+      for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){
+        const fx=cx+dx,fy=cy+dy;if(!inB(fx,fy))continue;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        const ec=get(fx,fy);if(ec?.g)popDecr(ec);
+        if(dist<=1.5) grid[idx(fx,fy)]={t:T.LAVA,age:0,ttl:400+Math.floor(Math.random()*200)};
+        else if(dist<=3) grid[idx(fx,fy)]={t:T.FIRE,age:0,ttl:20+Math.floor(Math.random()*30)};
+      }
+    }
+    else if(cosmic<0.26){
+      // ⚡ Lightning — vertical fire column from sky
+      const lx=Math.floor(Math.random()*W);
+      const depth=8+Math.floor(Math.random()*20);
+      for(let ly=0;ly<depth;ly++){
+        if(!inB(lx,ly))continue;
+        const ec=get(lx,ly);if(ec?.g)popDecr(ec);
+        grid[idx(lx,ly)]={t:T.FIRE,age:0,ttl:20+Math.floor(Math.random()*25)};
+      }
+    }
+    else if(cosmic<0.38){
+      // 👑 Surprise queen spawns
+      const pos=rndEmpty();if(pos){
+        const[x,y]=pos;
+        const qtypes=[T.QUEEN,T.QUEEN_SPIDER,T.QUEEN_MITE,T.QUEEN_TERMITE];
+        const qt=qtypes[Math.floor(Math.random()*qtypes.length)];
+        const popKey=qt===T.QUEEN?T.QUEEN:qt;
+        if((POP[popKey]||0)<(POP_MAX[popKey]||10)){
+          const genome=Array(6).fill(0).map(()=>80+Math.floor(Math.random()*120));
+          const cell=agentWithStrain(qt,genome,null,{energy:200});
+          if(cell){grid[idx(x,y)]=cell;popIncr(cell);}
+        }
+      }
+    }
+    else if(cosmic<0.50){
+      // 🦠 Rogue VIRUS cells appear
+      if(!machineRunning){
+        const count=2+Math.floor(Math.random()*4);
+        for(let i=0;i<count;i++){
+          const pos=rndEmpty();
+          if(pos){grid[idx(pos[0],pos[1])]={t:T.MACHINE,age:0};lastMachinePlacedTime=lastMachinePlacedTime||Date.now();}
+        }
+      }
+    }
+    else if(cosmic<0.62){
+      // 🧫 Rogue BACTERIA cluster appears
+      if(!bacteriaRunning){
+        const ccx=Math.floor(Math.random()*(W/2))*2;
+        const ccy=Math.floor(Math.random()*(H/2))*2;
+        for(let by=0;by<2;by++)for(let bx=0;bx<2;bx++){
+          if(inB(ccx+bx,ccy+by)&&!get(ccx+bx,ccy+by))
+            grid[idx(ccx+bx,ccy+by)]={t:T.BACTERIA,age:0};
+        }
+        if(!lastBacteriaPlacedTime)lastBacteriaPlacedTime=Date.now();
+      }
+    }
+    else if(cosmic<0.72){
+      // 🪱 Worm spawns from nowhere
+      const[wx,wy]=rndCell();
+      const wid=wormNextId++;
+      const cells2=[];
+      for(let i=0;i<5;i++){const cx=wx+i,cy=wy;if(!inB(cx,cy)||get(cx,cy))continue;cells2.push([cx,cy]);grid[idx(cx,cy)]={t:T.WORM,wid,age:0};}
+      if(cells2.length>=2)worms.set(wid,{cells:cells2,dir:[1,0],energy:200,tick:0});
+    }
+    else if(cosmic<0.82){
+      // 💥 Gunpowder chain reaction — scatter a few GP cells near existing fire
+      let ignition=null;
+      for(let i=0;i<W*H;i++){if(grid[i]?.t===T.FIRE){ignition=i;break;}}
+      if(ignition){
+        const ix=ignition%W,iy=Math.floor(ignition/W);
+        const count=4+Math.floor(Math.random()*6);
+        for(let i=0;i<count;i++){
+          const gx=ix+Math.floor((Math.random()-0.5)*12),gy=iy+Math.floor((Math.random()-0.5)*12);
+          if(inB(gx,gy)&&!get(gx,gy))grid[idx(gx,gy)]={t:T.GUNPOWDER,age:0};
+        }
+      }
+    }
+    else if(cosmic<0.91){
+      // 🧬 Custom creature spontaneously appears (if lab has creatures)
+      if(customCreatures.size>0){
+        const ids=[...customCreatures.keys()];
+        const id=ids[Math.floor(Math.random()*ids.length)];
+        const def=customCreatures.get(id);
+        if(def){
+          const pos=rndEmpty();if(pos){
+            const cell=spawnCustomCell(id,pos[0],pos[1],false);
+            if(cell){grid[idx(pos[0],pos[1])]=cell;POP[id]=(POP[id]||0)+1;}
+          }
+        }
+      }
+    }
+    else {
+      // 🌊 Flood surge — water erupts from a random edge
+      const side=Math.floor(Math.random()*4);
+      const count=5+Math.floor(Math.random()*10);
+      for(let i=0;i<count;i++){
+        let wx2,wy2;
+        if(side===0){wx2=Math.floor(Math.random()*W);wy2=0;}
+        else if(side===1){wx2=W-1;wy2=Math.floor(Math.random()*H);}
+        else if(side===2){wx2=Math.floor(Math.random()*W);wy2=H-1;}
+        else{wx2=0;wy2=Math.floor(Math.random()*H);}
+        if(inB(wx2,wy2)&&!get(wx2,wy2))grid[idx(wx2,wy2)]={t:T.WATER,age:0};
+      }
+    }
+  }
 }
 
 function _legacyLoop(t){
@@ -3035,9 +3575,19 @@ function inspectCell(clientX,clientY){
   const p=get(gx,gy);
   const el=_dom('iinfo');
   if(!p){el.textContent=`(${gx},${gy}) — empty`;return;}
-  const tname=Object.entries(T).find(([k,v])=>v===p.t)?.[0]||p.t;
+  let tname;
+  if(p.customType!==undefined){const def=customCreatures.get(p.customType);tname=def?`${def.icon} ${def.name}`:`CUSTOM:${p.customType}`;}
+  else tname=Object.entries(T).find(([k,v])=>v===p.t)?.[0]||p.t;
   let html=`<b style="color:#fff">(${gx},${gy}) ${tname}</b><br>AGE:${p.age}`;
-  if(p.g) html+=`<br>HP:${Math.round(p.hp||0)} E:${Math.round(p.energy||0)}<br>STRAIN:${p.sid}<br>G:[${p.g.join(',')}]`;
+  if(p.g){
+    if(p.customType!==undefined){
+      const def=customCreatures.get(p.customType);
+      html+=`<br>HP:${Math.round(p.hp||0)} E:${Math.round(p.energy||0)}`;
+      if(def) html+=`<br>${def.archetype.toUpperCase()} · ${def.movement.name} · ${def.diet.name}<br>POP:${POP[p.customType]||0}`;
+    } else {
+      html+=`<br>HP:${Math.round(p.hp||0)} E:${Math.round(p.energy||0)}<br>STRAIN:${p.sid}<br>G:[${p.g.join(',')}]`;
+    }
+  }
   if(p.t===T.WATER||p.t===T.OIL)html+=`<br>LIGHT:${lightGrid[idx(gx,gy)].toFixed(2)}`;
   el.innerHTML=html;
 }
@@ -3076,8 +3626,15 @@ function updateHoverTip(clientX, clientY){
     return;
   }
 
-  const label=TIP_LABELS[p.t]||`TYPE:${p.t}`;
-  const col=TIP_COLORS[p.t]||'#888';
+  let label, col;
+  if(p.customType!==undefined){
+    const def=customCreatures.get(p.customType);
+    label=def?`${def.icon} ${def.name}`:`CUSTOM:${p.customType}`;
+    col=def?`hsl(${def.hue},${def.sat}%,65%)`:'#aaaacc';
+  } else {
+    label=TIP_LABELS[p.t]||`TYPE:${p.t}`;
+    col=TIP_COLORS[p.t]||'#888';
+  }
 
   html=`<div class="ht-type" style="color:${col}">${label}</div>`;
 
@@ -3090,7 +3647,10 @@ function updateHoverTip(clientX, clientY){
     const enBar=makeBar(en,255,'#00ff88');
     html+=`<div class="ht-stat">HP ${hpBar} ${hp}  E ${enBar} ${en}</div>`;
     html+=`<div class="ht-stat">AGE: ${p.age}</div>`;
-    if(strain) html+=`<div class="ht-strain">STRAIN·${p.sid}  POP:${strain.pop}</div>`;
+    if(p.customType!==undefined){
+      const def=customCreatures.get(p.customType);
+      if(def) html+=`<div class="ht-strain">${def.movement.icon} ${def.movement.name} · ${def.diet.icon} ${def.diet.name} · POP:${POP[p.customType]||0}</div>`;
+    } else if(strain) html+=`<div class="ht-strain">STRAIN·${p.sid}  POP:${strain.pop}</div>`;
   } else {
     // Abiotic
     if(p.t===T.FIRE)    html+=`<div class="ht-stat">TTL: ${p.ttl||0}</div>`;
@@ -3209,14 +3769,18 @@ function drawAt(cx,cy){
         case 'gunpowder':  grid[idx(px,py)]={t:T.GUNPOWDER,age:0};break;
         case 'salt':       grid[idx(px,py)]={t:T.SALT,age:0};break;
         // Pharmacy drugs
-        case 'stimulant':  grid[idx(px,py)]={t:T.STIMULANT,age:0,ttl:400};break;
-        case 'chromadust': grid[idx(px,py)]={t:T.CHROMADUST,age:0,ttl:350};break;
-        case 'nectar':     grid[idx(px,py)]={t:T.NECTAR,age:0,ttl:400};break;
-        case 'venomBrew':  grid[idx(px,py)]={t:T.VENOM_BREW,age:0,ttl:300};break;
-        case 'pheromone':  grid[idx(px,py)]={t:T.PHEROMONE,age:0,ttl:350};break;
-        case 'calcifier':  grid[idx(px,py)]={t:T.CALCIFIER,age:0,ttl:400};break;
-        case 'sporeBomb':  grid[idx(px,py)]={t:T.SPORE_BOMB,age:0,ttl:300};break;
-        case 'gigantism':  grid[idx(px,py)]={t:T.GIGANTISM,age:0,ttl:400};break;
+        case 'lucid':      grid[idx(px,py)]={t:T.LUCID,age:0,ttl:300};break;
+        case 'chromadust':{
+          // Each hue bucket (30° step, 12 total) is a distinct custom creature colony
+          const hue=Math.floor(Math.random()*12)*30;
+          if(!chromaStrains.has(hue)){
+            chromaStrains.set(hue, createChromaCreature(hue));
+          }
+          const ec=grid[idx(px,py)];if(ec?.g)popDecr(ec);
+          grid[idx(px,py)]={t:T.CHROMADUST,age:0,hue,ttl:150+Math.floor(Math.random()*80)};
+          break;
+        }
+        case 'crank':      grid[idx(px,py)]={t:T.CRANK,age:0,ttl:250};break;
         case 'mutagen': {
           // Life Seed drops a burst of random organisms at cursor + scatter several seeds
           const seedTypes=[T.ANT,T.PLANT,T.SPIDER,T.FUNGI,T.MITE,T.QUEEN,T.QUEEN_SPIDER,T.QUEEN_MITE];
@@ -3266,11 +3830,49 @@ function drawAt(cx,cy){
           break;
         }
         case 'machine':{
-          // Scattered random placement across full brush — ~40% density per cell
           if(machineRunning)break;
+          lastMachinePlacedTime=Date.now(); // reset timer on every brush pixel
           if(Math.random()<0.40){
             const ec=grid[idx(px,py)];if(ec?.g)popDecr(ec);
             grid[idx(px,py)]={t:T.MACHINE,age:0,dormant:true};
+          }
+          break;
+        }
+        case 'bacteria':{
+          if(bacteriaRunning)break;
+          lastBacteriaPlacedTime=Date.now(); // reset timer on every brush pixel
+          // Only process at 2×2 coarse-grid origins — prevents placing partial blocks
+          if(px%2!==0||py%2!==0)break;
+          if(Math.random()<0.40){
+            for(let by=0;by<2;by++)for(let bx=0;bx<2;bx++){
+              const gx=px+bx,gy=py+by;
+              if(!inB(gx,gy))continue;
+              const ec=grid[idx(gx,gy)];if(ec?.g)popDecr(ec);
+              grid[idx(gx,gy)]={t:T.BACTERIA,age:0,dormant:true};
+            }
+          }
+          break;
+        }
+        // ── RNA preset stamps — known HighLife (B36/S23) patterns ──
+        case 'rna1':case 'rna2':case 'rna3':{
+          // Patterns defined as coarse-cell offsets from center (each → 2×2 fine block)
+          // rna1: Glider — moves diagonally (B3/S2 shared with GoL)
+          const RNA_GLIDER=[[0,-1],[1,0],[-1,1],[0,1],[1,1]];
+          // rna2: Replicator seed — 6-cell diagonal ring; center has 6 live neighbors → B6 fires
+          const RNA_SEED=[[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1]];
+          // rna3: Bomber — replicator seed + blinker offset diagonally (creates a HighLife spaceship)
+          const RNA_BOMB=[...RNA_SEED,[3,2],[4,2],[5,2]];
+          const pattern=currentEl==='rna1'?RNA_GLIDER:currentEl==='rna2'?RNA_SEED:RNA_BOMB;
+          const ccx=Math.floor(px/2),ccy=Math.floor(py/2);
+          lastBacteriaPlacedTime=Date.now();
+          for(const[dx,dy] of pattern){
+            const gx=(ccx+dx)*2,gy=(ccy+dy)*2;
+            for(let by=0;by<2;by++)for(let bx=0;bx<2;bx++){
+              const fx=gx+bx,fy=gy+by;
+              if(!inB(fx,fy))continue;
+              const ec=grid[idx(fx,fy)];if(ec?.g)popDecr(ec);
+              grid[idx(fx,fy)]={t:T.BACTERIA,age:0};
+            }
           }
           break;
         }
@@ -3485,14 +4087,9 @@ const ELEMENTS=[
   {cat:null,      key:'progVoid',    label:'PROG VOID',    col:'#220033',  tag:'⚙▼'},
   {cat:null,      key:'fire',    label:'FIRE',       col:'#ff4400',  tag:'🔥'},
   {cat:null,      key:'lava',    label:'LAVA',       col:'#ff5500',  tag:'ρ8'},
-  {cat:'PHARMACY',key:'stimulant',  label:'STIMULANT',   col:'#ff8c00',  tag:'💊'},
-  {cat:null,      key:'chromadust', label:'CHROMADUST',  col:'#ff00ff',  tag:'🌈'},
-  {cat:null,      key:'nectar',     label:'NECTAR',      col:'#ffcc00',  tag:'🍯'},
-  {cat:null,      key:'venomBrew',  label:'VENOM BREW',  col:'#44aa44',  tag:'☠'},
-  {cat:null,      key:'pheromone',  label:'PHEROMONE',   col:'#cc8820',  tag:'👃'},
-  {cat:null,      key:'calcifier',  label:'CALCIFIER',   col:'#9090a0',  tag:'🪨'},
-  {cat:null,      key:'sporeBomb',  label:'SPORE BOMB',  col:'#6600aa',  tag:'💣'},
-  {cat:null,      key:'gigantism',  label:'GIGANTISM',   col:'#aa3366',  tag:'⬆'},
+  {cat:'PHARMACY',key:'lucid',      label:'LUCID',       col:'#dd88ff',  tag:'🌈'},
+  {cat:null,      key:'crank',      label:'CRANK',       col:'#ff6600',  tag:'💥'},
+  {cat:null,      key:'chromadust', label:'CHROMADUST',  col:'#ff00ff',  tag:'✨'},
   {cat:'ABIOTIC', key:'jelly',   label:'JELLY',      col:'#c055a0',  tag:'〰'},
   {cat:null,      key:'sand',    label:'SAND',       col:'#c4a35a',  tag:'ρ5'},
   {cat:null,      key:'clay',    label:'CLAY',       col:'#7a8599',  tag:'ρ5'},
@@ -3537,8 +4134,8 @@ ELEMENTS.forEach(e=>{
 const MOBILE_CATS = {
   terrain: ['sand','clay','stone','wood','ice','goldSand','whiteSand','salt','water','acid','oil','ash','smoke','steam','gunpowder','wall','fire','lava'],
   life:    ['ant','queen','spider','queenSpider','termite','queenTermite','mite','queenMite','plant','seed','algae','detritus','fungi','spore'],
-  special: ['mutagen','cloud','bloomCloud','progCloud','progVoid'],
-  rx:      ['stimulant','chromadust','nectar','venomBrew','pheromone','calcifier','sporeBomb','gigantism'],
+  special: ['mutagen','chromadust','cloud','bloomCloud','progCloud','progVoid'],
+  rx:      ['lucid','crank'],
 };
 
 // Element tray and category tabs are now owned by React (ElementTray / CategoryTabs components).
@@ -3779,6 +4376,8 @@ function seedLife(){
 function resetSim(){
   grid.fill(null);lightGrid.fill(0);pheroGrid.fill(0);
   rainActive=false;acidRainActive=false;
+  chromaStrains.clear();
+  lucidSources.length=0;
   strainRegistry.clear();nextStrain=1;
   tickCount=0;
   Object.keys(POP).forEach(k=>POP[k]=0);
@@ -4325,6 +4924,13 @@ const TRAIT_OPTIONS = {
 };
 
 const CREATURE_ICONS=['🐜','🐛','🦗','🦟','🐞','🦂','🦀','🐙','🦑','🐚','🐌','🦋','🐝','🪲','🪳','🦠','👾','👽','🤖','💀','👻','🔮','💎','⭐','🌟','✨','🌀','❄️','⚡','🌊','🍄','🌸','🌺','💜','💙','💚','💛','🧡','❤️'];
+
+// Chromadust hue-bucket → creature spec (cleared on reset)
+const chromaStrains = new Map(); // hue (0,30,60…330) → {baseType, genome, sid}
+
+const lucidSources=[]; // {x,y,age,hue} — visual fractal wave sources
+const LUCID_LIFETIME=400;
+const MAX_LUCID_SOURCES=14;
 
 // Custom creature state
 const customCreatures = new Map();
@@ -5565,6 +6171,9 @@ export function createEngine(canvasEl, stateCallback) {
     if (_stateCallback && uiFrame % 8 === 0) {
       let hasMachineCells=false;
       for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE){hasMachineCells=true;break;}}
+      let hasBacteriaCells=false;
+      for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.BACTERIA){hasBacteriaCells=true;break;}}
+      const _now=Date.now();
       _stateCallback({
         tick: tickCount,
         era: getEra(),
@@ -5573,8 +6182,13 @@ export function createEngine(canvasEl, stateCallback) {
         machineGen: machineGeneration,
         machineBest: machineBestGen,
         machineRunning,
-        machineCountdown: null,
+        machineCountdown: (!machineRunning&&lastMachinePlacedTime>0)?Math.max(0,Math.ceil((MACHINE_ACTIVATION_DELAY-(_now-lastMachinePlacedTime))/1000)):null,
         hasMachineCells,
+        bacteriaGen: bacteriaGeneration,
+        bacteriaBest: bacteriaBestGen,
+        bacteriaRunning,
+        bacteriaCountdown: (!bacteriaRunning&&lastBacteriaPlacedTime>0)?Math.max(0,Math.ceil((BACTERIA_ACTIVATION_DELAY-(_now-lastBacteriaPlacedTime))/1000)):null,
+        hasBacteriaCells,
       });
     }
     uiFrame++;
@@ -5605,22 +6219,26 @@ export function createEngine(canvasEl, stateCallback) {
     setBrush(size)     { brushSize = size; },
     setBrushSize(size) { brushSize = size; },
     setSpeed(mult)     { speedMult = mult; },
-    setMutRate(r)   { mutRate = r; },
-    getMutRate()    { return mutRate; },
+    setMutRate(r)      { mutRate = r; },
+    getMutRate()       { return mutRate; },
+    setEntropyRate(r)  { entropyRate = r; },
     getTickCount()  { return tickCount; },
     getGrid()       { return grid; },
     startGoL() {
-      let hasMachines=false;
-      for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE){hasMachines=true;break;}}
-      if(!hasMachines)return;
+      // Manual override (auto-activation is the default path)
+      let hm=false;for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE){hm=true;break;}}
+      if(!hm)return;
       for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE)grid[mi].dormant=false;}
       machineUniX0=0;machineUniY0=0;machineUniX1=W-1;machineUniY1=H-1;
-      machineRunning=true;machineGeneration=0;
-      showEventToast('⚙ MACHINE ACTIVATED','Conway\'s Game of Life — begin!');
+      machineRunning=true;machineGeneration=0;lastMachinePlacedTime=0;
     },
     stopGoL() {
-      machineRunning=false;machineGeneration=0;
+      machineRunning=false;machineGeneration=0;lastMachinePlacedTime=0;
       for(let mi=0;mi<W*H;mi++){const _t=grid[mi]?.t;if(_t===T.MACHINE||_t===T.MACHINE_DEAD)grid[mi]=null;}
+    },
+    stopBacteria() {
+      bacteriaRunning=false;bacteriaGeneration=0;lastBacteriaPlacedTime=0;
+      for(let mi=0;mi<W*H;mi++){const _t=grid[mi]?.t;if(_t===T.BACTERIA||_t===T.BACTERIA_DEAD)grid[mi]=null;}
     },
   };
 }

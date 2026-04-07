@@ -37,6 +37,9 @@ export const T = {
   // Conway's Game of Life machines
   MACHINE:70,
   MACHINE_DEAD:71,
+  // HighLife bacteria (2×2 pixel scale)
+  BACTERIA:74,
+  BACTERIA_DEAD:75,
   // Custom lab creatures start here
   CUSTOM_BASE:100,
 };
@@ -105,21 +108,21 @@ export const ELEMENTS = [
   {cat:'life', key:'detritus',    label:'DETRITUS',     col:'#806545', tag:'🍂'},
   {cat:'life', key:'fungi',       label:'FUNGI',        col:'#8c32c8', tag:'🍄'},
   {cat:'life', key:'spore',       label:'SPORE',        col:'#a050dc', tag:'✦'},
-  // virus (conway's game of life)
+  // virus (conway's game of life) + bacteria (highlife)
   {cat:'special', key:'machine',    label:'VIRUS',       col:'#00e5ff', tag:'🦠'},
+  {cat:'special', key:'bacteria',   label:'BACTERIA',    col:'#44ff88', tag:'🧫'},
+  // RNA preset stamps (HighLife patterns)
+  {cat:'special', key:'rna1',       label:'RNA GLIDER',  col:'#66ffaa', tag:'🔬'},
+  {cat:'special', key:'rna2',       label:'RNA SEED',    col:'#44ffcc', tag:'🧬'},
+  {cat:'special', key:'rna3',       label:'RNA BOMB',    col:'#99ffee', tag:'💉'},
   // special
   {cat:'special', key:'mutagen',    label:'LIFE SEED',   col:'#cc00ee', tag:'⚛'},
+  {cat:'special', key:'chromadust', label:'CHROMADUST',  col:'#cc88ff', tag:'✨'},
   {cat:'special', key:'cloud',      label:'CLOUD',       col:'#aaccee', tag:'☁'},
   {cat:'special', key:'bloomCloud', label:'BLOOM CLOUD', col:'#881020', tag:'💥'},
   {cat:'special', key:'progCloud',  label:'PROG CLOUD',  col:'#44aaff', tag:'⚙☁'},
   {cat:'special', key:'progVoid',   label:'PROG VOID',   col:'#220033', tag:'⚙▼'},
-  // rx (special items that appear in rx tab)
-  {cat:'rx', key:'stimulant',   label:'STIMULANT',   col:'#ff44cc', tag:'💊'},
-  {cat:'rx', key:'chromadust',  label:'CHROMADUST',  col:'#cc88ff', tag:'✨'},
-  {cat:'rx', key:'nectar',      label:'NECTAR',      col:'#ffcc00', tag:'🍯'},
-  {cat:'rx', key:'venomBrew',   label:'VENOM BREW',  col:'#44ff88', tag:'⚗'},
-  {cat:'rx', key:'pheromone',   label:'PHEROMONE',   col:'#ff8844', tag:'〰'},
-  {cat:'rx', key:'calcifier',   label:'CALCIFIER',   col:'#aaaaaa', tag:'⬡'},
-  {cat:'rx', key:'sporeBomb',   label:'SPORE BOMB',  col:'#cc44ff', tag:'💣'},
-  {cat:'rx', key:'gigantism',   label:'GIGANTISM',   col:'#ff4400', tag:'⬆'},
+  // rx
+  {cat:'rx', key:'lucid',       label:'LUCID',       col:'#dd88ff', tag:'🌈'},
+  {cat:'rx', key:'crank',       label:'CRANK',       col:'#ff6600', tag:'💥'},
 ];

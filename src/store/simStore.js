@@ -12,10 +12,16 @@ export const useSimStore = create((set, get) => ({
   machineRunning: false,
   machineCountdown: null,
   hasMachineCells: false,
+  bacteriaGen: 0,
+  bacteriaBest: 0,
+  bacteriaRunning: false,
+  bacteriaCountdown: null,
+  hasBacteriaCells: false,
   menuOpen: false,
   setMenuOpen: (val) => set({ menuOpen: val }),
-  startGoL:  () => get().engine?.startGoL(),
-  stopGoL:   () => get().engine?.stopGoL(),
+  startGoL:    () => get().engine?.startGoL(),
+  stopGoL:     () => get().engine?.stopGoL(),
+  stopBacteria:() => get().engine?.stopBacteria(),
   reset:     () => get().engine?.reset(),
   seed:      () => get().engine?.seed(),
   randomMap: () => get().engine?.randomMap(),
@@ -44,6 +50,13 @@ export const useSimStore = create((set, get) => ({
   setMutRate: (r) => {
     set({ mutRate: r })
     get().engine?.setMutRate(r)
+  },
+
+  // Entropy rate — chaos event frequency
+  entropyRate: 0,
+  setEntropyRate: (r) => {
+    set({ entropyRate: r })
+    get().engine?.setEntropyRate(r)
   },
 
   // Brush & speed — synced to engine

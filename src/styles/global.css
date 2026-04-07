@@ -315,7 +315,12 @@ body {
   border-radius: 4px;
 }
 
-/* ─── MACHINE (GoL) STATS ─── */
+/* ─── GoL / BACTERIA STATS ─── */
+#gol-status {
+  flex: 1;
+  text-align: center;
+  font-size: 9px;
+}
 #machine-stats {
   flex: 1;
   text-align: center;
@@ -332,12 +337,16 @@ body {
 }
 .machine-countdown {
   color: #00e5ff;
-  animation: machine-pulse 0.6s ease-in-out infinite alternate;
+  animation: gol-pulse 0.6s ease-in-out infinite alternate;
 }
 .machine-gen  { color: #00e5ff; font-weight: bold; }
-.machine-best { color: var(--dim); }
-@keyframes machine-pulse {
-  from { opacity: 0.5; }
+.bacteria-countdown {
+  color: #44ff88;
+  animation: gol-pulse 0.8s ease-in-out infinite alternate;
+}
+.bacteria-gen { color: #44ff88; font-weight: bold; }
+@keyframes gol-pulse {
+  from { opacity: 0.4; }
   to   { opacity: 1; }
 }
 
@@ -568,7 +577,7 @@ canvas { display: block; }
 #ctrl-row {
   display: flex;
   gap: 6px;
-  padding: 5px 8px 6px;
+  padding: 5px 8px 14px;
   border-top: 1px solid var(--btn-border);
 }
 
