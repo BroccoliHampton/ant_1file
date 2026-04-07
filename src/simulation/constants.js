@@ -34,6 +34,8 @@ export const T = {
   // Additional creatures from phone version
   TERMITE:60,
   QUEEN_TERMITE:61,
+  HUNTSMAN:62,
+  QUEEN_HUNTSMAN:63,
   // Conway's Game of Life machines
   MACHINE:70,
   MACHINE_DEAD:71,
@@ -48,18 +50,21 @@ export const KINGDOM_HUE = {
   [T.PLANT]:130, [T.ANT]:100, [T.QUEEN]:35,
   [T.SPIDER]:0, [T.FUNGI]:280, [T.MITE]:40,
   [T.QUEEN_SPIDER]:285, [T.QUEEN_MITE]:50,
+  [T.HUNTSMAN]:22, [T.QUEEN_HUNTSMAN]:38,
 };
 
 export const K_NAMES = {
   [T.PLANT]:'PLANT', [T.ANT]:'ANT', [T.QUEEN]:'QUEEN',
   [T.SPIDER]:'SPIDER', [T.FUNGI]:'FUNGI', [T.MITE]:'MITE',
   [T.QUEEN_SPIDER]:'Q.SPIDER', [T.QUEEN_MITE]:'Q.MITE',
+  [T.HUNTSMAN]:'HUNTSMAN', [T.QUEEN_HUNTSMAN]:'Q.HUNTSMAN',
 };
 
 export const K_COLORS = {
   [T.PLANT]:'#1a6b1a', [T.ANT]:'#39ff14', [T.QUEEN]:'#ff8800',
   [T.SPIDER]:'#505058', [T.FUNGI]:'#8c32c8', [T.MITE]:'#ff8c00',
   [T.QUEEN_SPIDER]:'#cc44ff', [T.QUEEN_MITE]:'#ffdd44',
+  [T.HUNTSMAN]:'#c86020', [T.QUEEN_HUNTSMAN]:'#e89000',
 };
 
 export const GENOME_DEFAULTS = {
@@ -67,6 +72,7 @@ export const GENOME_DEFAULTS = {
   [T.ANT]:     [[60,100],[120,200],[100,180],[80,150],[80,140],[100,180]],
   [T.QUEEN]:   [[100,160],[20,60],[80,140],[40,80],  [140,220],[180,255]],
   [T.SPIDER]:  [[80,140],[100,180],[80,160],[160,230],[120,200],[40,100]],
+  [T.HUNTSMAN]:[[80,140],[100,180],[80,160],[160,230],[120,200],[40,100]],
   [T.FUNGI]:   [[40,80], [10,40], [100,180],[20,60], [80,160],[120,200]],
   [T.MITE]:    [[40,80], [160,230],[120,200],[60,120],[60,120],[140,220]],
 };
@@ -98,8 +104,10 @@ export const ELEMENTS = [
   {cat:'life', key:'queen',       label:'QUEEN ANT',    col:'#ff8800', tag:'👑'},
   {cat:'life', key:'spider',      label:'SPIDER',       col:'#505058', tag:'🕷'},
   {cat:'life', key:'queenSpider', label:'QUEEN SPIDER', col:'#cc44ff', tag:'🕸👑'},
-  {cat:'life', key:'termite',     label:'TERMITE',      col:'#d8d8d4', tag:'🪲'},
-  {cat:'life', key:'queenTermite',label:'Q.TERMITE',    col:'#f5ecc0', tag:'🪲👑'},
+  {cat:'life', key:'termite',     label:'TERMITE',      col:'#20b8a8', tag:'🪲'},
+  {cat:'life', key:'queenTermite',label:'Q.TERMITE',    col:'#40d8c0', tag:'🪲👑'},
+  {cat:'life', key:'huntsman',      label:'HUNTSMAN',       col:'#c86020', tag:'🕷'},
+  {cat:'life', key:'queenHuntsman', label:'Q.HUNTSMAN',     col:'#e89000', tag:'🕸👑'},
   {cat:'life', key:'mite',        label:'MITE',         col:'#ff8c00', tag:'🪲'},
   {cat:'life', key:'queenMite',   label:'QUEEN MITE',   col:'#ffdd44', tag:'🪲👑'},
   {cat:'life', key:'plant',       label:'PLANT',        col:'#1a6b1a', tag:'🌿'},

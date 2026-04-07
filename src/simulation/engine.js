@@ -116,7 +116,7 @@ const DENSITY={
   [T.FIRE]:0.5,[T.SPORE]:1,
   [T.PLANT]:3,[T.ANT]:3,[T.TERMITE]:3,[T.QUEEN]:5,[T.SPIDER]:3,[T.FUNGI]:2,[T.TUNNEL_WALL]:3,
   [T.MITE]:2,[T.PLANT_WALL]:999,[T.WEB]:1,[T.EGG]:3,
-  [T.SEED]:4,[T.QUEEN_SPIDER]:5,[T.QUEEN_MITE]:5,[T.QUEEN_TERMITE]:5,
+  [T.SEED]:4,[T.QUEEN_SPIDER]:5,[T.QUEEN_MITE]:5,[T.QUEEN_TERMITE]:5,[T.HUNTSMAN]:3,[T.QUEEN_HUNTSMAN]:5,
   // Classic elements
   [T.LAVA]:8,[T.STONE]:7,[T.STEAM]:0.1,[T.ICE]:3,
   [T.SMOKE]:0.15,[T.OXYGEN]:0.12,[T.WOOD]:4,[T.ASH]:0.8,[T.ACID]:2.1,[T.GUNPOWDER]:4.5,[T.SALT]:3,
@@ -195,9 +195,11 @@ const GENOME_DEFAULTS = {
   [T.SPIDER]:  [[80,140],[100,180],[80,160],[160,230],[120,200],[120,220]],
   [T.FUNGI]:   [[40,80], [10,40], [100,180],[20,60], [80,160],[120,200]],
   [T.MITE]:    [[40,80], [160,230],[120,200],[60,120],[60,120],[140,220]],
-  [T.TERMITE]:      [[60,100],[120,200],[100,180],[80,150],[80,140],[100,180]],
-  [T.QUEEN_TERMITE]:[[100,160],[20,60],[80,140],[40,80],[140,220],[180,255]],
-  [T.QUEEN_SPIDER]: [[80,140],[100,180],[80,160],[160,230],[120,200],[120,220]],
+  [T.TERMITE]:       [[60,100],[120,200],[100,180],[80,150],[80,140],[100,180]],
+  [T.QUEEN_TERMITE]: [[100,160],[20,60],[80,140],[40,80],[140,220],[180,255]],
+  [T.QUEEN_SPIDER]:  [[80,140],[100,180],[80,160],[160,230],[120,200],[120,220]],
+  [T.HUNTSMAN]:      [[80,140],[100,180],[80,160],[160,230],[120,200],[40,100]],
+  [T.QUEEN_HUNTSMAN]:[[80,140],[100,180],[80,160],[160,230],[120,200],[120,220]],
   [T.QUEEN_MITE]:   [[40,80],[160,230],[120,200],[60,120],[60,120],[140,220]],
 };
 
@@ -222,6 +224,13 @@ const VARIANT_POOL={
     {name:'Venomous',traits:['venom'],hueShift:260,desc:'Single bite kills any creature instantly'},
     {name:'Acrobat',traits:['fast'],hueShift:70,desc:'Moves 3x faster but has half HP'},
     {name:'Pack-Hunter',traits:['pack'],hueShift:320,desc:'Doubles damage when another spider is adjacent'},
+  ],
+  [T.HUNTSMAN]:[
+    {name:'Ambusher',traits:['ambush'],hueShift:100,desc:'Only strikes when prey is within 2 cells'},
+    {name:'Web-Spinner',traits:['web_boost'],hueShift:180,desc:'Spins web 3x faster'},
+    {name:'Venomous',traits:['venom'],hueShift:260,desc:'Single bite kills any creature instantly'},
+    {name:'Acrobat',traits:['fast'],hueShift:70,desc:'Moves faster but has half HP'},
+    {name:'Pack-Hunter',traits:['pack'],hueShift:320,desc:'Doubles damage when another huntsman is adjacent'},
   ],
   [T.TERMITE]:[
     {name:'Wood-Borer',traits:['fast_eat_wood'],hueShift:90,desc:'Consumes wood 3x faster'},
@@ -249,6 +258,7 @@ const VARIANT_POOL={
 const WORKER_QUEEN_MAP={
   [T.ANT]:T.QUEEN,[T.TERMITE]:T.QUEEN_TERMITE,
   [T.SPIDER]:T.QUEEN_SPIDER,[T.MITE]:T.QUEEN_MITE,
+  [T.HUNTSMAN]:T.QUEEN_HUNTSMAN,
 };
 function trySpeciate(type,parentGenome,parentVariant){
   if(mutRate===0)return null; // mutations disabled — no speciation or variant inheritance
@@ -315,7 +325,7 @@ function registerStrain(type,genome,parentId=null){
 }
 
 // Kingdom base hues (for color generation)
-const KINGDOM_HUE={[T.PLANT]:130,[T.ANT]:100,[T.TERMITE]:25,[T.QUEEN]:35,[T.QUEEN_TERMITE]:30,[T.SPIDER]:0,[T.FUNGI]:280,[T.MITE]:40,[T.QUEEN_SPIDER]:285,[T.QUEEN_MITE]:50};
+const KINGDOM_HUE={[T.PLANT]:130,[T.ANT]:100,[T.TERMITE]:175,[T.QUEEN]:35,[T.QUEEN_TERMITE]:170,[T.SPIDER]:0,[T.FUNGI]:280,[T.MITE]:40,[T.QUEEN_SPIDER]:285,[T.QUEEN_MITE]:50,[T.HUNTSMAN]:22,[T.QUEEN_HUNTSMAN]:38};
 
 // ================================================================
 //  WORLD STATE
@@ -328,14 +338,15 @@ let tickCount=0;
 let imageData,pixels;
 
 // Population counters (fast, updated each tick)
-const POP={[T.PLANT]:0,[T.ANT]:0,[T.TERMITE]:0,[T.QUEEN]:0,[T.QUEEN_TERMITE]:0,[T.SPIDER]:0,[T.FUNGI]:0,[T.MITE]:0,[T.QUEEN_SPIDER]:0,[T.QUEEN_MITE]:0};
-const POP_MAX={[T.PLANT]:800,[T.ANT]:300,[T.TERMITE]:250,[T.QUEEN]:100,[T.QUEEN_TERMITE]:40,[T.SPIDER]:120,[T.FUNGI]:300,[T.MITE]:200,[T.QUEEN_SPIDER]:25,[T.QUEEN_MITE]:10};
+const POP={[T.PLANT]:0,[T.ANT]:0,[T.TERMITE]:0,[T.QUEEN]:0,[T.QUEEN_TERMITE]:0,[T.SPIDER]:0,[T.FUNGI]:0,[T.MITE]:0,[T.QUEEN_SPIDER]:0,[T.QUEEN_MITE]:0,[T.HUNTSMAN]:0,[T.QUEEN_HUNTSMAN]:0};
+const POP_MAX={[T.PLANT]:800,[T.ANT]:300,[T.TERMITE]:250,[T.QUEEN]:100,[T.QUEEN_TERMITE]:40,[T.SPIDER]:120,[T.FUNGI]:300,[T.MITE]:200,[T.QUEEN_SPIDER]:25,[T.QUEEN_MITE]:10,[T.HUNTSMAN]:120,[T.QUEEN_HUNTSMAN]:25};
 
 // Population history — sampled every 100 ticks, max 80 samples kept
 const POP_HISTORY={
   [T.PLANT]:[],[T.ANT]:[],[T.TERMITE]:[],[T.QUEEN]:[],[T.QUEEN_TERMITE]:[],
   [T.SPIDER]:[],[T.FUNGI]:[],[T.MITE]:[],
   [T.QUEEN_SPIDER]:[],[T.QUEEN_MITE]:[],
+  [T.HUNTSMAN]:[],[T.QUEEN_HUNTSMAN]:[],
 };
 const POP_GRAPH_MAX=80; // max samples retained
 let lastPopSample=0;
@@ -432,14 +443,16 @@ function hslToRgb(h,s,l){
 
 // Kingdom display colors (stable, not genome-derived for UI)
 const K_COLORS={
-  [T.PLANT]:'#1a6b1a',[T.ANT]:'#39ff14',[T.TERMITE]:'#cc8844',[T.QUEEN]:'#ff8800',[T.QUEEN_TERMITE]:'#ee9944',
+  [T.PLANT]:'#1a6b1a',[T.ANT]:'#39ff14',[T.TERMITE]:'#20b8a8',[T.QUEEN]:'#ff8800',[T.QUEEN_TERMITE]:'#40d8c0',
   [T.SPIDER]:'#505058',[T.FUNGI]:'#8c32c8',[T.MITE]:'#ff8c00',
   [T.QUEEN_SPIDER]:'#cc44ff',[T.QUEEN_MITE]:'#ffdd44',
+  [T.HUNTSMAN]:'#c86020',[T.QUEEN_HUNTSMAN]:'#e89000',
 };
 const K_NAMES={
   [T.PLANT]:'PLANT',[T.ANT]:'ANT',[T.TERMITE]:'TERMITE',[T.QUEEN]:'QUEEN',[T.QUEEN_TERMITE]:'Q.TERMITE',
   [T.SPIDER]:'SPIDER',[T.FUNGI]:'FUNGI',[T.MITE]:'MITE',
   [T.QUEEN_SPIDER]:'Q.SPIDER',[T.QUEEN_MITE]:'Q.MITE',
+  [T.HUNTSMAN]:'HUNTSMAN',[T.QUEEN_HUNTSMAN]:'Q.HUNTSMAN',
 };
 
 // ================================================================
@@ -749,7 +762,7 @@ function stepAnt(x,y,p){
   // OFFENSE
   if(aggression>0.85&&Math.random()<aggression*0.015){
     for(const[nx,ny] of nbrs){const np=get(nx,ny);
-      if(np?.t===T.SPIDER||np?.t===T.QUEEN_SPIDER){for(const[sx,sy] of nbrs){const sp=get(sx,sy);if(sp?.t===T.SALT||sp?.t===T.ASH||sp?.t===T.GUNPOWDER){np.hp-=sp.t===T.GUNPOWDER?50:12;grid[idx(sx,sy)]=null;break;}}break;}
+      if(np?.t===T.SPIDER||np?.t===T.QUEEN_SPIDER||np?.t===T.HUNTSMAN||np?.t===T.QUEEN_HUNTSMAN){for(const[sx,sy] of nbrs){const sp=get(sx,sy);if(sp?.t===T.SALT||sp?.t===T.ASH||sp?.t===T.GUNPOWDER){np.hp-=sp.t===T.GUNPOWDER?50:12;grid[idx(sx,sy)]=null;break;}}break;}
     }
   }
 
@@ -909,7 +922,7 @@ function stepTermite(x,y,p){
 
   // fighter trait: termites attack adjacent spiders
   if(tvt.includes('fighter')&&Math.random()<0.08){
-    for(const[nx,ny] of nbrs){const np=get(nx,ny);if(np?.t===T.SPIDER||np?.t===T.QUEEN_SPIDER){np.hp-=12;p.energy+=5;if(np.hp<=0){grid[idx(nx,ny)]=null;popDecr(np);}break;}}
+    for(const[nx,ny] of nbrs){const np=get(nx,ny);if(np?.t===T.SPIDER||np?.t===T.QUEEN_SPIDER||np?.t===T.HUNTSMAN||np?.t===T.QUEEN_HUNTSMAN){np.hp-=12;p.energy+=5;if(np.hp<=0){grid[idx(nx,ny)]=null;popDecr(np);}break;}}
   }
 
   // Pheromone — inside wood structures or near walls
@@ -1206,7 +1219,7 @@ function stepFungi(x,y,p){
     if(np.t===T.SALT){p.hp-=40;if(p.hp<=0){set(x,y,null);popDecr(p);return;}}
     if(np.t===T.LAVA||np.t===T.ACID){p.hp-=50;if(p.hp<=0){set(x,y,null);popDecr(p);return;}}
     if(np.t===T.WOOD&&Math.random()<spreadSpeed*0.008){grid[idx(nx,ny)]=abiotic(T.DETRITUS);p.energy=Math.min(255,p.energy+15);}
-    if(np.t===T.SPIDER&&Math.random()<p.g[2]/255*0.08){
+    if((np.t===T.SPIDER||np.t===T.HUNTSMAN)&&Math.random()<p.g[2]/255*0.08){
       const drain=8+Math.floor(p.g[2]/255*12);np.energy=Math.max(0,np.energy-drain);np.hp-=3;p.energy+=drain*0.7;
       if(np.hp<=0){
         set(nx,ny,null);popDecr(np);
@@ -1232,7 +1245,7 @@ function stepFungi(x,y,p){
   }
   // parasite trait: drain 1 HP from adjacent creatures each tick
   if(fvt.includes('parasite')){
-    for(const[nx,ny] of nbrs){const np=get(nx,ny);if(np&&(np.t===T.ANT||np.t===T.TERMITE||np.t===T.MITE||np.t===T.SPIDER)){np.hp-=1;p.energy=Math.min(255,p.energy+1);}}
+    for(const[nx,ny] of nbrs){const np=get(nx,ny);if(np&&(np.t===T.ANT||np.t===T.TERMITE||np.t===T.MITE||np.t===T.SPIDER||np.t===T.HUNTSMAN)){np.hp-=1;p.energy=Math.min(255,p.energy+1);}}
   }
   if(nearType(x,y,T.ICE)){p.energy=Math.min(255,p.energy+0.1);return;}
   p.energy-=0.04;if(p.energy<=0||p.hp<=0){
@@ -1323,7 +1336,7 @@ function stepMite(x,y,p){
   }
   p.energy=Math.min(255,p.energy);
   if(aggression>0.6&&Math.random()<aggression*0.04){
-    for(const[nx,ny] of nbrs){const np=get(nx,ny);if(np?.t===T.SPIDER||np?.t===T.QUEEN_SPIDER){for(const[sx,sy] of nbrs){const sp=get(sx,sy);if(sp?.t===T.SALT||sp?.t===T.ACID){np.hp-=sp.t===T.ACID?20:8;if(sp.t===T.SALT)grid[idx(sx,sy)]=null;break;}}break;}}
+    for(const[nx,ny] of nbrs){const np=get(nx,ny);if(np?.t===T.SPIDER||np?.t===T.QUEEN_SPIDER||np?.t===T.HUNTSMAN||np?.t===T.QUEEN_HUNTSMAN){for(const[sx,sy] of nbrs){const sp=get(sx,sy);if(sp?.t===T.SALT||sp?.t===T.ACID){np.hp-=sp.t===T.ACID?20:8;if(sp.t===T.SALT)grid[idx(sx,sy)]=null;break;}}break;}}
   }
   const onIce=nearType(x,y,T.ICE);
   const nearFire=nearType(x,y,T.FIRE,T.LAVA);
@@ -1491,6 +1504,158 @@ function stepQueenSpider(x,y,p){
         const[wx,wy]=nbrs[Math.floor(Math.random()*nbrs.length)];
         grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:150+Math.floor(Math.random()*80)};
       }
+    }
+  }
+}
+
+// ================================================================
+//  HUNTSMAN — old-style free-roaming spider (pre web-constraint)
+// ================================================================
+function stepHuntsman(x,y,p){
+  p.age++;
+  processBuff(p);
+  if(p.buff?.type==='chromadust'&&Math.random()<0.3){const jx=x+Math.floor((Math.random()-0.5)*6),jy=y+Math.floor((Math.random()-0.5)*6);if(inB(jx,jy)&&!get(jx,jy)){swap(x,y,jx,jy);return;}}
+  const svt=p.variant?.traits||[];
+  const aggression=p.g[3]/255,resilience=p.g[4]/255;
+  p.energy-=0.05+p.g[1]/255*0.06;
+  if(envDamage(x,y,p))return;
+  const gx2=gv.x,gy2=gv.y,bx=x+gx2,by=y+gy2;
+  const belowCell=inB(bx,by)?grid[idx(bx,by)]:null;
+
+  function moveHuntsmanTo(nx,ny){
+    const originI=idx(x,y),destI=idx(nx,ny);
+    const dest=grid[destI];
+    grid[originI]=(p.under?.t===T.WOOD)?p.under:null;
+    p.under=null;
+    if(dest?.t===T.WOOD){p.under=dest;}
+    else if(dest?.t===T.WEB||dest?.t===T.DETRITUS){/* consume */}
+    grid[destI]=p; x=nx; y=ny;
+  }
+
+  // Gravity fallthrough when floating free
+  const onSurface=belowCell&&(isSpiderSurface(belowCell.t)||belowCell.t===T.WATER);
+  const canCling=getCardinals(x,y).some(([nx,ny])=>{const np=get(nx,ny);return np&&isSpiderSurface(np.t);});
+  if(!onSurface&&!canCling&&!belowCell){if(inB(bx,by)&&!get(bx,by)){moveHuntsmanTo(bx,by);return;}}
+  const nbrs=getNeighbors(x,y);
+
+  // Web-building — OLD style: genome-only base, random placement, 3x web_boost, long TTL 200-350
+  if(Math.random()<(p.g[5]/255*0.08)*(svt.includes('web_boost')?3:1)){
+    const wc=nbrs.filter(([nx,ny])=>!get(nx,ny)&&!nearType(nx,ny,T.ACID,T.LAVA));
+    if(wc.length){
+      const[wx,wy]=wc[Math.floor(Math.random()*wc.length)];
+      grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:200+Math.floor(Math.random()*150)};
+    }
+  }
+
+  // Hunting
+  const smokeBlind=nearType(x,y,T.SMOKE);
+  const radius=smokeBlind?2:(svt.includes('ambush')?2:5+Math.floor(aggression*5));
+  let tx2=-1,ty2=-1,bd=999;
+  for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){
+    const tp=get(x+dx,y+dy);
+    if(tp&&(tp.t===T.ANT||tp.t===T.TERMITE||tp.t===T.MITE||tp.t===T.EGG)){const d=Math.abs(dx)+Math.abs(dy);if(d<bd){bd=d;tx2=x+dx;ty2=y+dy;}}
+  }
+  if(tx2>=0){
+    const ddx=Math.sign(tx2-x),ddy=Math.sign(ty2-y),nx=x+ddx,ny=y+ddy,np=get(nx,ny);
+    // Fire herding
+    if(aggression>0.7&&Math.random()<aggression*0.15){
+      const bx2=tx2+ddx,by2=ty2+ddy;const beyond=inB(bx2,by2)?get(bx2,by2):null;
+      if(beyond?.t===T.FIRE||beyond?.t===T.LAVA){if(np?.t===T.ANT||np?.t===T.MITE){np.hp-=30;p.energy+=15;}}
+    }
+    // FREE-ROAM movement — can step on any open cell, web, wood, or detritus
+    if(!np||np.t===T.WEB||np.t===T.WOOD||np.t===T.DETRITUS){moveHuntsmanTo(nx,ny);}
+    else if(np?.t===T.ANT||np?.t===T.TERMITE||np?.t===T.MITE||np?.t===T.EGG){
+      const packBonus=svt.includes('pack')&&getNeighbors(x,y).some(([ax,ay])=>{const ap=get(ax,ay);return ap?.t===T.HUNTSMAN;})?2:1;
+      const dmg=(15+Math.floor(aggression*35))*packBonus;
+      if(svt.includes('venom'))np.hp=0;else np.hp-=dmg;
+      p.energy+=25;
+      if(np.hp<=0){
+        grid[idx(nx,ny)]=null;if(np.t===T.ANT||np.t===T.TERMITE||np.t===T.MITE)popDecr(np);
+        p.energy+=10;
+        // OLD: queen drop on kill — energy≥190, 5%, search radius 20
+        if(p.energy>=190&&Math.random()<0.05&&POP[T.QUEEN_HUNTSMAN]<POP_MAX[T.QUEEN_HUNTSMAN]){
+          let qNear2=false;
+          for(let dy2=-20;dy2<=20&&!qNear2;dy2++)for(let dx2=-20;dx2<=20&&!qNear2;dx2++){if(get(x+dx2,y+dy2)?.t===T.QUEEN_HUNTSMAN)qNear2=true;}
+          if(!qNear2){
+            const qSpot=getNeighbors(x,y).filter(([qx,qy])=>!get(qx,qy)||get(qx,qy)?.t===T.WEB);
+            if(qSpot.length){
+              const[qx,qy]=qSpot[Math.floor(Math.random()*qSpot.length)];
+              const ng=mutateGenome(p.g,mutRate);
+              grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_HUNTSMAN,ng,p.sid,{energy:180});
+              popIncr({t:T.QUEEN_HUNTSMAN,sid:p.sid});p.energy-=100;
+            }
+          }
+        }
+      }
+    }
+    // Acid spit
+    if(aggression>0.75&&p.energy>180&&Math.random()<aggression*0.02){
+      const midX=x+Math.sign(tx2-x),midY=y+Math.sign(ty2-y);
+      if(inB(midX,midY)&&!get(midX,midY)){grid[idx(midX,midY)]={t:T.ACID,age:0,ttl:60};p.energy-=15;}
+    }
+  } else {
+    // Wander freely — OLD: 15% normal, 45% fast; can walk open ground
+    const moveChance=svt.includes('fast')?0.45:0.15;
+    if(Math.random()<moveChance){
+      const candidates=nbrs.map(([nx,ny])=>{
+        const np=get(nx,ny);
+        if(np?.t===T.WEB)return[nx,ny,3+hazardPenalty(nx,ny,resilience)];
+        if(np?.t===T.WOOD)return[nx,ny,3+hazardPenalty(nx,ny,resilience)];
+        if(!np||np.t===T.DETRITUS){
+          const adjSurf=getNeighbors(nx,ny).some(([ax,ay])=>{const ap=get(ax,ay);return ap&&isSpiderSurface(ap.t);});
+          return[nx,ny,(adjSurf?2:1)+hazardPenalty(nx,ny,resilience)];
+        }
+        return null;
+      }).filter(Boolean);
+      candidates.sort((a,b)=>b[2]-a[2]);
+      const best=candidates[0];
+      if(best&&best[2]>0)moveHuntsmanTo(best[0],best[1]);
+    }
+  }
+
+  for(const[nx,ny] of nbrs){if(get(nx,ny)?.t===T.FUNGI&&Math.random()<0.06){p.hp-=5;break;}}
+  for(const[nx,ny] of nbrs){
+    const np=get(nx,ny);
+    if(np?.t===T.DETRITUS&&Math.random()<0.3){p.energy+=12;grid[idx(nx,ny)]=null;break;}
+  }
+  // OLD idle queen drop: energy≥220, 0.6%, search radius 20
+  if(p.energy>=220&&POP[T.QUEEN_HUNTSMAN]<POP_MAX[T.QUEEN_HUNTSMAN]){
+    let qNear=false;for(let dy=-20;dy<=20&&!qNear;dy++)for(let dx=-20;dx<=20&&!qNear;dx++){if(get(x+dx,y+dy)?.t===T.QUEEN_HUNTSMAN)qNear=true;}
+    if(!qNear&&Math.random()<0.006){
+      const on=nbrs.filter(([nx,ny])=>!get(nx,ny));
+      if(on.length){const[qx,qy]=on[Math.floor(Math.random()*on.length)];const ng=mutateGenome(p.g,mutRate);grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_HUNTSMAN,ng,p.sid,{energy:180});popIncr({t:T.QUEEN_HUNTSMAN,sid:p.sid});p.energy-=100;}
+    }
+  }
+  // OLD worker bud: energy>220, 0.3%
+  if(p.energy>220&&Math.random()<p.g[5]/255*0.003&&POP[T.HUNTSMAN]<POP_MAX[T.HUNTSMAN]){
+    const on=nbrs.filter(([nx,ny])=>!get(nx,ny));
+    if(on.length){const[nx,ny]=on[Math.floor(Math.random()*on.length)];set(nx,ny,spawnWithSpeciation(T.HUNTSMAN,p.g,p.sid,p.variant,{energy:80}));popIncr({t:T.HUNTSMAN,sid:p.sid});p.energy-=80;}
+  }
+}
+
+// ---- QUEEN HUNTSMAN ---- OLD queen spider behavior (slow spawn, minimal web)
+function stepQueenHuntsman(x,y,p){
+  p.age++;
+  const lv=lightGrid[idx(x,y)];
+  p.energy=Math.min(255,p.energy+lv*2+0.4);
+  if(p.hp<=0){set(x,y,null);popDecr(p);return;}
+
+  // OLD: spawn rate 25-115 ticks (slower than current queen spider's 12-52)
+  const spawnRate=25+Math.floor((1-p.g[5]/255)*90);
+  if(p.age%spawnRate===0&&POP[T.HUNTSMAN]<POP_MAX[T.HUNTSMAN]){
+    const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
+    if(nbrs.length){
+      const[nx,ny]=nbrs[Math.floor(Math.random()*nbrs.length)];
+      set(nx,ny,spawnWithSpeciation(T.HUNTSMAN,p.g,p.sid,p.variant,{energy:120}));
+      popIncr({t:T.HUNTSMAN,sid:p.sid});
+    }
+  }
+  // OLD: every 40 ticks, 40% chance, 1 web cell, long TTL 300
+  if(p.age%40===0&&Math.random()<0.4){
+    const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
+    if(nbrs.length){
+      const[wx,wy]=nbrs[Math.floor(Math.random()*nbrs.length)];
+      grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:300};
     }
   }
 }
@@ -2347,6 +2512,7 @@ function stepParticle(x,y){
   if(p.t===T.QUEEN_SPIDER){stepQueenSpider(x,y,p);return;}
   if(p.t===T.QUEEN_MITE){stepQueenMite(x,y,p);return;}
   if(p.t===T.QUEEN_TERMITE){stepQueenTermite(x,y,p);return;}
+  if(p.t===T.QUEEN_HUNTSMAN){stepQueenHuntsman(x,y,p);return;}
 
   // Passive gravity — only mites (fast, skittery) among agents obey simple density physics
   // Ants and spiders handle gravity inside their own step functions
@@ -2370,8 +2536,9 @@ function stepParticle(x,y){
     case T.ANT:     stepAnt(x,y,p);     break;
     case T.TERMITE: stepTermite(x,y,p); break;
     case T.QUEEN:   stepQueen(x,y,p);   break;
-    case T.SPIDER:  stepSpider(x,y,p);  break;
-    case T.FUNGI:   stepFungi(x,y,p);   break;
+    case T.SPIDER:   stepSpider(x,y,p);   break;
+    case T.HUNTSMAN: stepHuntsman(x,y,p); break;
+    case T.FUNGI:    stepFungi(x,y,p);    break;
     case T.MITE:    stepMite(x,y,p);    break;
   }
 }
@@ -2584,8 +2751,10 @@ function getColor(p,x,y){
     case T.JELLY:{const w=Math.sin((p.age||0)*0.18)*15;r=180+w|0;g=80+(w*0.5)|0;b=160+w|0;break;} // shimmery pink-purple
     case T.WORM:{const seg=(p.age||0)%6;r=200-(seg*8);g=80+(seg*4);b=60;break;} // segmented pink-red
     case T.QUEEN_SPIDER:{const f=Math.random()<0.15;r=f?220:170;g=f?80:50;b=f?255:210;break;} // vivid purple
-    case T.TERMITE:{const v=Math.floor(Math.random()*18);r=215+v;g=215+v;b=210+v;break;} // bright white
-    case T.QUEEN_TERMITE:{const f=Math.random()<0.2;r=f?255:245;g=f?245:235;b=f?210:185;break;} // warm cream
+    case T.TERMITE:{const v=Math.floor(Math.random()*20);r=25+v;g=175+v;b=160+v;break;} // teal
+    case T.QUEEN_TERMITE:{const f=Math.random()<0.2;r=f?40:25;g=f?220:200;b=f?210:185;break;} // bright teal-cyan
+    case T.HUNTSMAN:{const f=Math.random()<0.2;r=f?230:190;g=f?110:80;b=f?40:25;break;} // warm rust-orange
+    case T.QUEEN_HUNTSMAN:{const f=Math.random()<0.15;r=f?255:235;g=f?180:140;b=f?20:10;break;} // golden amber
     case T.FROGSTONE: {
       const hubX=p.hubX||x, hubY=p.hubY||y;
       const sunPow2=Math.max(0,Math.min(1,1-(Math.sqrt(Math.pow(sunX-hubX,2)+Math.pow(sunY-hubY,2))/(W*0.45))));
@@ -2895,6 +3064,7 @@ function stepMachineGoL(){
   // --- Virus spread: machines infect organic cells, die on loose terrain ---
   const _isOrganic=t=>(t===T.ANT||t===T.QUEEN||t===T.SPIDER||t===T.QUEEN_SPIDER||
     t===T.TERMITE||t===T.QUEEN_TERMITE||t===T.MITE||t===T.QUEEN_MITE||
+    t===T.HUNTSMAN||t===T.QUEEN_HUNTSMAN||
     t===T.PLANT||t===T.PLANT_WALL||t===T.FUNGI||t===T.WEB||
     t===T.DETRITUS||t===T.SPORE||t===T.SEED||t===T.EGG||t===T.WOOD);
   const _isTerrainKill=t=>(t===T.SAND||t===T.GOLD_SAND||t===T.WHITE_SAND||
@@ -3021,6 +3191,7 @@ function stepBacteriaGoL(){
   // Bacteria infect organic neighbours (lower rate than virus)
   const _isOrganic=t=>(t===T.ANT||t===T.QUEEN||t===T.SPIDER||t===T.QUEEN_SPIDER||
     t===T.TERMITE||t===T.QUEEN_TERMITE||t===T.MITE||t===T.QUEEN_MITE||
+    t===T.HUNTSMAN||t===T.QUEEN_HUNTSMAN||
     t===T.PLANT||t===T.PLANT_WALL||t===T.FUNGI||t===T.WEB||
     t===T.DETRITUS||t===T.SPORE||t===T.SEED||t===T.EGG||t===T.WOOD);
   const _isTerrainKill=t=>(t===T.SAND||t===T.GOLD_SAND||t===T.WHITE_SAND||
@@ -3131,7 +3302,7 @@ function simStep(){
   // Sample population history every 100 ticks
   if(tickCount-lastPopSample>=100){
     lastPopSample=tickCount;
-    for(const t of [T.PLANT,T.ANT,T.TERMITE,T.QUEEN,T.QUEEN_TERMITE,T.SPIDER,T.FUNGI,T.MITE,T.QUEEN_SPIDER,T.QUEEN_MITE]){
+    for(const t of [T.PLANT,T.ANT,T.TERMITE,T.QUEEN,T.QUEEN_TERMITE,T.SPIDER,T.FUNGI,T.MITE,T.QUEEN_SPIDER,T.QUEEN_MITE,T.HUNTSMAN,T.QUEEN_HUNTSMAN]){
       POP_HISTORY[t].push(POP[t]);
       if(POP_HISTORY[t].length>POP_GRAPH_MAX) POP_HISTORY[t].shift();
     }
@@ -3286,7 +3457,7 @@ function stepEntropy(){
       // 👑 Surprise queen spawns
       const pos=rndEmpty();if(pos){
         const[x,y]=pos;
-        const qtypes=[T.QUEEN,T.QUEEN_SPIDER,T.QUEEN_MITE,T.QUEEN_TERMITE];
+        const qtypes=[T.QUEEN,T.QUEEN_SPIDER,T.QUEEN_MITE,T.QUEEN_TERMITE,T.QUEEN_HUNTSMAN];
         const qt=qtypes[Math.floor(Math.random()*qtypes.length)];
         const popKey=qt===T.QUEEN?T.QUEEN:qt;
         if((POP[popKey]||0)<(POP_MAX[popKey]||10)){
@@ -3396,14 +3567,15 @@ function updateUI(){
   s.innerHTML=[
     ['TOTAL AGENTS',totalPop],['STRAINS',strains],
     ['PLANTS',POP[T.PLANT]],['ANTS',POP[T.ANT]],['TERMITES',POP[T.TERMITE]],['QUEENS',POP[T.QUEEN]],
-    ['SPIDERS',POP[T.SPIDER]],['FUNGI',POP[T.FUNGI]],['MITES',POP[T.MITE]],
+    ['SPIDERS',POP[T.SPIDER]],['HUNTSMEN',POP[T.HUNTSMAN]],['FUNGI',POP[T.FUNGI]],['MITES',POP[T.MITE]],
   ].map(([n,v])=>`<div class="statrow"><span class="sname">${n}</span><span class="sval">${v}</span></div>`).join('');
 
   // Population bars
   const kbarsEl=_dom('kbars');
   const kbarData=[
-    [T.PLANT,'PLANT',K_COLORS[T.PLANT]],[T.ANT,'ANT',K_COLORS[T.ANT]],[T.TERMITE,'TERMITE','#cc8844'],
+    [T.PLANT,'PLANT',K_COLORS[T.PLANT]],[T.ANT,'ANT',K_COLORS[T.ANT]],[T.TERMITE,'TERMITE',K_COLORS[T.TERMITE]],
     [T.QUEEN,'QUEEN',K_COLORS[T.QUEEN]],[T.SPIDER,'SPIDER',K_COLORS[T.SPIDER]],
+    [T.HUNTSMAN,'HUNTSMAN',K_COLORS[T.HUNTSMAN]],
     [T.FUNGI,'FUNGI',K_COLORS[T.FUNGI]],[T.MITE,'MITE',K_COLORS[T.MITE]],
   ];
   kbarsEl.innerHTML=kbarData.map(([type,name,col])=>{
@@ -3429,11 +3601,12 @@ function drawPopGraph(){
   const series=[
     {t:T.PLANT, name:'PLANT',  col:K_COLORS[T.PLANT]},
     {t:T.ANT,   name:'ANT',    col:K_COLORS[T.ANT]},
-    {t:T.TERMITE,name:'TERMITE',col:'#cc8844'},
-    {t:T.QUEEN, name:'QUEEN',  col:K_COLORS[T.QUEEN]},
-    {t:T.SPIDER,name:'SPIDER', col:K_COLORS[T.SPIDER]},
-    {t:T.FUNGI, name:'FUNGI',  col:K_COLORS[T.FUNGI]},
-    {t:T.MITE,  name:'MITE',   col:K_COLORS[T.MITE]},
+    {t:T.TERMITE, name:'TERMITE',  col:K_COLORS[T.TERMITE]},
+    {t:T.QUEEN,   name:'QUEEN',    col:K_COLORS[T.QUEEN]},
+    {t:T.SPIDER,  name:'SPIDER',   col:K_COLORS[T.SPIDER]},
+    {t:T.HUNTSMAN,name:'HUNTSMAN', col:K_COLORS[T.HUNTSMAN]},
+    {t:T.FUNGI,   name:'FUNGI',    col:K_COLORS[T.FUNGI]},
+    {t:T.MITE,    name:'MITE',     col:K_COLORS[T.MITE]},
   ];
 
   const SW=169, SH=20; // sparkline dimensions
@@ -3601,6 +3774,7 @@ const TIP_LABELS={
   [T.OIL]:'OIL',[T.FIRE]:'FIRE',[T.MUTAGEN]:'LIFE SEED',
   [T.PLANT]:'PLANT',[T.ANT]:'ANT',[T.TERMITE]:'TERMITE',[T.QUEEN]:'QUEEN',
   [T.SPIDER]:'SPIDER',[T.FUNGI]:'FUNGI',[T.MITE]:'MITE',
+  [T.HUNTSMAN]:'HUNTSMAN',[T.QUEEN_HUNTSMAN]:'Q.HUNTSMAN',
   [T.PLANT_WALL]:'PLANT WALL',[T.WEB]:'WEB',[T.SPORE]:'SPORE',[T.EGG]:'EGG',
   [T.TUNNEL_WALL]:'TUNNEL WALL',
   [T.FROGSTONE]:'FROGSTONE',
@@ -3612,7 +3786,8 @@ const TIP_COLORS={
   [T.PLANT]:K_COLORS[T.PLANT],[T.ANT]:K_COLORS[T.ANT],[T.QUEEN]:K_COLORS[T.QUEEN],
   [T.SPIDER]:K_COLORS[T.SPIDER],[T.FUNGI]:K_COLORS[T.FUNGI],[T.MITE]:K_COLORS[T.MITE],
   [T.PLANT_WALL]:'#226622',[T.WEB]:'#aaaaaa',[T.SPORE]:'#9955cc',[T.EGG]:'#ddcc88',
-  [T.FROGSTONE]:'#88cc44',[T.TERMITE]:'#cc8844',[T.QUEEN_TERMITE]:'#ee9944',[T.TUNNEL_WALL]:'#556688',
+  [T.FROGSTONE]:'#88cc44',[T.TERMITE]:'#20b8a8',[T.QUEEN_TERMITE]:'#40d8c0',[T.TUNNEL_WALL]:'#556688',
+  [T.HUNTSMAN]:'#c86020',[T.QUEEN_HUNTSMAN]:'#e89000',
 };
 
 function updateHoverTip(clientX, clientY){
@@ -3815,6 +3990,8 @@ function drawAt(cx,cy){
         case 'queen':{const g=randomGenome(T.QUEEN);const s=registerStrain(T.QUEEN,g);grid[idx(px,py)]=agentWithStrain(T.QUEEN,g,s,{energy:200});POP[T.QUEEN]++;break;}
         case 'spider':{const g=randomGenome(T.SPIDER);const s=registerStrain(T.SPIDER,g);grid[idx(px,py)]=agentWithStrain(T.SPIDER,g,s,{energy:150});POP[T.SPIDER]++;break;}
         case 'queenSpider':{const g=randomGenome(T.QUEEN_SPIDER);const s=registerStrain(T.QUEEN_SPIDER,g);grid[idx(px,py)]=agentWithStrain(T.QUEEN_SPIDER,g,s,{energy:200});POP[T.QUEEN_SPIDER]++;break;}
+        case 'huntsman':{const g=randomGenome(T.HUNTSMAN);const s=registerStrain(T.HUNTSMAN,g);grid[idx(px,py)]=agentWithStrain(T.HUNTSMAN,g,s,{energy:150});POP[T.HUNTSMAN]++;break;}
+        case 'queenHuntsman':{const g=randomGenome(T.QUEEN_HUNTSMAN);const s=registerStrain(T.QUEEN_HUNTSMAN,g);grid[idx(px,py)]=agentWithStrain(T.QUEEN_HUNTSMAN,g,s,{energy:200});POP[T.QUEEN_HUNTSMAN]++;break;}
         case 'fungi':{const g=randomGenome(T.FUNGI);const s=registerStrain(T.FUNGI,g);grid[idx(px,py)]=agentWithStrain(T.FUNGI,g,s,{energy:100});POP[T.FUNGI]++;break;}
         case 'mite':{const g=randomGenome(T.MITE);const s=registerStrain(T.MITE,g);grid[idx(px,py)]=agentWithStrain(T.MITE,g,s,{energy:120});POP[T.MITE]++;break;}
         case 'queenMite':{const g=randomGenome(T.QUEEN_MITE);const s=registerStrain(T.QUEEN_MITE,g);grid[idx(px,py)]=agentWithStrain(T.QUEEN_MITE,g,s,{energy:180});POP[T.QUEEN_MITE]++;break;}
@@ -4392,7 +4569,7 @@ function resetSim(){
   fridgeZones=[];
   worms.clear();wormNextId=0;
   heldMutagen=null;
-  for(const t of [T.PLANT,T.ANT,T.TERMITE,T.QUEEN,T.QUEEN_TERMITE,T.SPIDER,T.FUNGI,T.MITE,T.QUEEN_SPIDER,T.QUEEN_MITE]) POP_HISTORY[t]=[];
+  for(const t of [T.PLANT,T.ANT,T.TERMITE,T.QUEEN,T.QUEEN_TERMITE,T.SPIDER,T.FUNGI,T.MITE,T.QUEEN_SPIDER,T.QUEEN_MITE,T.HUNTSMAN,T.QUEEN_HUNTSMAN]) POP_HISTORY[t]=[];
   for(const id of customCreatures.keys()){POP[id]=0;POP[id+100]=0;}
   exitObserveMode();
   _dom('held-panel').style.display='none';
