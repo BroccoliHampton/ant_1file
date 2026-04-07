@@ -814,6 +814,7 @@ function stepAnt(x,y,p){
         digCandidates.push([nx,ny,weight]);
       }
     }
+    lucidConstrainMoves(moveCandidates,x,y);
     if(moveCandidates.length){
       moveCandidates.sort((a,b)=>b[2]-a[2]);const best=moveCandidates[0][2];
       const bestCells=moveCandidates.filter(c=>c[2]===best);
@@ -963,6 +964,7 @@ function stepTermite(x,y,p){
         digCandidates.push([nx,ny,weight]);
       }
     }
+    lucidConstrainMoves(moveCandidates,x,y);
     if(moveCandidates.length){
       moveCandidates.sort((a,b)=>b[2]-a[2]);
       const best=moveCandidates[0][2];
@@ -1153,8 +1155,8 @@ function stepSpider(x,y,p){
       const bx2=tx2+ddx,by2=ty2+ddy;const beyond=inB(bx2,by2)?get(bx2,by2):null;
       if(beyond?.t===T.FIRE||beyond?.t===T.LAVA){if(np?.t===T.ANT||np?.t===T.MITE){np.hp-=30;p.energy+=15;}}
     }
-    // Step toward prey only along web network
-    if(onWebNetwork(nx,ny)){moveSpiderTo(nx,ny);}
+    // Step toward prey only along web network (lucid: only if destination is on a wave node)
+    if(onWebNetwork(nx,ny)&&(lucidFieldAt(x,y)<0.08||isLucidNode(nx,ny))){moveSpiderTo(nx,ny);}
     // Attack prey that is directly adjacent regardless of web (reach through the gap)
     else if(np?.t===T.ANT||np?.t===T.TERMITE||np?.t===T.MITE||np?.t===T.EGG){
       const packBonus=svt.includes('pack')&&getNeighbors(x,y).some(([ax,ay])=>{const ap=get(ax,ay);return ap?.t===T.SPIDER;})?2:1;
@@ -1197,6 +1199,7 @@ function stepSpider(x,y,p){
         }
         return null;
       }).filter(Boolean);
+      lucidConstrainMoves(scored,x,y);
       scored.sort((a,b)=>b[2]-a[2]);
       const best=scored[0];
       if(best&&best[2]>0)moveSpiderTo(best[0],best[1]);
@@ -1372,6 +1375,7 @@ function stepMite(x,y,p){
   const steps=onIce?(3+Math.floor(speed*2))*iceStepMult:1+Math.floor(speed*1.5);
   for(let s=0;s<steps;s++){
     const dirs=getNeighbors(x,y).filter(([nx,ny])=>{const np=get(nx,ny);if(np&&np.t!==T.FUNGI&&np.t!==T.DETRITUS)return false;const db=get(nx+gv.x,ny+gv.y);return!(db?.t===T.WATER||db?.t===T.ACID);});
+    lucidConstrainMoves(dirs,x,y);
     if(!dirs.length)break;const[mx,my]=dirs[Math.floor(Math.random()*dirs.length)];const prevX=x,prevY=y;swap(x,y,mx,my);[x,y]=[mx,my];
     // acid_trail: leave acid at previous position occasionally
     if(mvt.includes('acid_trail')&&Math.random()<0.05&&!grid[idx(prevX,prevY)]){grid[idx(prevX,prevY)]={t:T.ACID,age:0,ttl:30};}
@@ -1585,7 +1589,8 @@ function stepHuntsman(x,y,p){
       if(beyond?.t===T.FIRE||beyond?.t===T.LAVA){if(np?.t===T.ANT||np?.t===T.MITE){np.hp-=30;p.energy+=15;}}
     }
     // FREE-ROAM movement — can step on any open cell, web, wood, or detritus
-    if(!np||np.t===T.WEB||np.t===T.WOOD||np.t===T.DETRITUS){moveHuntsmanTo(nx,ny);}
+    // (lucid: only if destination is on a wave node while inside the field)
+    if((!np||np.t===T.WEB||np.t===T.WOOD||np.t===T.DETRITUS)&&(lucidFieldAt(x,y)<0.08||isLucidNode(nx,ny))){moveHuntsmanTo(nx,ny);}
     else if(np?.t===T.ANT||np?.t===T.TERMITE||np?.t===T.MITE||np?.t===T.EGG){
       const packBonus=svt.includes('pack')&&getNeighbors(x,y).some(([ax,ay])=>{const ap=get(ax,ay);return ap?.t===T.HUNTSMAN;})?2:1;
       const dmg=(15+Math.floor(aggression*35))*packBonus;
@@ -1629,6 +1634,7 @@ function stepHuntsman(x,y,p){
         }
         return null;
       }).filter(Boolean);
+      lucidConstrainMoves(candidates,x,y);
       candidates.sort((a,b)=>b[2]-a[2]);
       const best=candidates[0];
       if(best&&best[2]>0)moveHuntsmanTo(best[0],best[1]);
@@ -1916,6 +1922,35 @@ function stepDrug(x,y,p,buffType,buffTTL){
   }
   tryFlow(x,y);
 }
+// ---- Lucid wave helpers (used by creature step functions) ----
+// Returns the wave intensity at cell (x,y) from all active lucid sources (0-1).
+// Mirrors the visual overlay math in getColor so the "lines" creatures follow
+// are exactly the bright rings players can see.
+function lucidFieldAt(x,y){
+  if(!lucidSources.length)return 0;
+  let best=0;
+  for(const src of lucidSources){
+    const dx=x-src.x,dy=y-src.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    const ageFade=Math.max(0,1-src.age/LUCID_LIFETIME);
+    const wave=(Math.sin((dist*0.5-src.age*0.18)*Math.PI)*0.5+0.5);
+    const intensity=wave*ageFade*(1-dist/(W*1.2));
+    if(intensity>best)best=intensity;
+  }
+  return best;
+}
+// A cell is "on the path" when it sits on a bright wave band.
+function isLucidNode(x,y){return lucidFieldAt(x,y)>0.55;}
+// Mutates the candidate array in-place: if the creature is inside the field,
+// keep only node cells. Falls back to all candidates if no node is adjacent.
+function lucidConstrainMoves(cands,x,y){
+  if(!lucidSources.length||!cands.length)return;
+  const myField=lucidFieldAt(x,y);
+  if(myField<0.08)return; // outside field — unconstrained
+  const nodes=cands.filter(c=>isLucidNode(c[0],c[1]));
+  if(nodes.length>0){cands.length=0;cands.push(...nodes);}
+}
+
 function stepLucid(x,y,p){
   p.ttl=(p.ttl||200)-1;
   if(p.ttl<=0){grid[idx(x,y)]=null;return;}
