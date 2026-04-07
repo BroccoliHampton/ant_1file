@@ -5851,6 +5851,7 @@ function saveCreature(){
     const c=readLabForm();
     c.name=_dom('lab-name').value.trim()||customCreatures.get(editingCreatureId)?.name||'Creature';
     c.id=editingCreatureId;
+    c.fromLab=true;
     c.interactions=generateInteractions(c);
     customCreatures.set(editingCreatureId,c);
     for(let i=0;i<W*H;i++){const p=grid[i];if(p?.customType===editingCreatureId)p.hp=Math.min(p.hp,p.isQueen?c.size.hp*2:c.size.hp);}
@@ -5865,6 +5866,7 @@ function saveCreature(){
   const c=readLabForm();
   c.name=_dom('lab-name').value.trim()||`Creature ${nextCustomId-T.CUSTOM_BASE+1}`;
   c.id=nextCustomId++;
+  c.fromLab=true;
   c.interactions=generateInteractions(c);
   customCreatures.set(c.id,c);
   POP[c.id]=0;POP[c.id+100]=0;POP_MAX[c.id]=800;POP_MAX[c.id+100]=10;POP_HISTORY[c.id]=[];
@@ -5925,8 +5927,9 @@ function deleteCreature(id){
 
 function updateCustomList(){
   const list=_dom('custom-list');
-  if(customCreatures.size===0){list.innerHTML='<div style="font-size:7px;color:var(--dim);padding:6px;text-align:center;">No custom creatures. Open lab to create.</div>';return;}
-  list.innerHTML=[...customCreatures.values()].map(c=>{
+  const labCreatures=[...customCreatures.values()].filter(c=>c.fromLab);
+  if(labCreatures.length===0){list.innerHTML='';return;}
+  list.innerHTML=labCreatures.map(c=>{
     const isActive=selectedCustom===c.id;
     const col=`hsl(${c.hue},${c.sat}%,65%)`;
     const movLabel=c.movement?.icon&&c.movement?.name?`${c.movement.icon} ${c.movement.name}`:'';
