@@ -6416,8 +6416,19 @@ window._labFn={
   updateColor:()=>updateLabColorPreview(),
   archChange:()=>onArchetypeChange(),
 };
-// Also expose cancelEdit globally for the editing banner button
+// Expose functions used in inline onclick/oninput attributes of dynamically-built HTML
+// (ES module scope is not global, so inline handlers can't find them otherwise)
 window.cancelEdit=cancelEdit;
+window.selectCustomCreature=selectCustomCreature;
+window.spawnFromHistory=spawnFromHistory;
+window.selectLabHistoryCreature=selectLabHistoryCreature;
+window.deleteCreature=deleteCreature;
+window.editCreature=editCreature;
+window.showCreatureCard=showCreatureCard;
+window.hideCreatureCard=hideCreatureCard;
+window.openLab=openLab;
+window.toggleIconPicker=toggleIconPicker;
+window.selectLabIcon=selectLabIcon;
 
 buildOrder();
 
