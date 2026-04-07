@@ -1934,8 +1934,13 @@ function lucidFieldAt(x,y){
     const dx=x-src.x,dy=y-src.y;
     const dist=Math.sqrt(dx*dx+dy*dy);
     const ageFade=Math.max(0,1-src.age/LUCID_LIFETIME);
-    const wave=(Math.sin((dist*0.5-src.age*0.18)*Math.PI)*0.5+0.5);
-    const intensity=wave*ageFade*(1-dist/(W*1.2));
+    // Standing wave: rings stay at fixed distances from the source for its
+    // whole lifetime, so platforms don't sweep away after a few ticks.
+    // sin² peaks at every odd integer distance (1, 3, 5, 7 … cells out).
+    // The visual in getColor still uses the original traveling wave — the
+    // expanding colour rings are cosmetic; only the physics uses this.
+    const s=Math.sin(dist*0.5*Math.PI);
+    const intensity=s*s*ageFade*(1-dist/(W*1.2));
     if(intensity>best)best=intensity;
   }
   return best;
@@ -1953,16 +1958,17 @@ function lucidConstrainMoves(cands,x,y){
 }
 
 function stepLucid(x,y,p){
-  // Activate immediately on first step — wave source at lucid's own position,
-  // no need to flow to a creature first (that wait was the perceived "cooldown").
-  if(!p.srcSpawned){
-    p.srcSpawned=true;
-    if(lucidSources.length<MAX_LUCID_SOURCES)
-      lucidSources.push({x,y,age:0,hue:Math.floor(Math.random()*360)});
-    grid[idx(x,y)]=null;return;
+  p.ttl=(p.ttl||200)-1;
+  if(p.ttl<=0){grid[idx(x,y)]=null;return;}
+  for(const[nx,ny] of getNeighbors(x,y)){
+    const np=get(nx,ny);
+    if(np?.g||np?.customType!==undefined){
+      if(lucidSources.length<MAX_LUCID_SOURCES)
+        lucidSources.push({x:nx,y:ny,age:0,hue:Math.floor(Math.random()*360)});
+      grid[idx(x,y)]=null;return;
+    }
   }
-  // Fallback: if for some reason the cell persists (shouldn't happen), clean up
-  grid[idx(x,y)]=null;
+  tryFlow(x,y);
 }
 function createChromaCreature(hue){
   const archs=['creature','creature','creature','plant','fungi'];
