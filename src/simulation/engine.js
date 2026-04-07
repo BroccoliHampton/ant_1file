@@ -743,7 +743,8 @@ function stepAnt(x,y,p){
     p.cellX=nx;p.cellY=ny;
   }
 
-  if(!touchingSolid&&!belowCell){if(inB(bx,by)){if(!get(bx,by)){moveAntTo(bx,by);return;}}}
+  // Lucid ring nodes count as temporary aerial platforms — don't fall through them
+  if(!touchingSolid&&!belowCell&&!isLucidNode(x,y)){if(inB(bx,by)){if(!get(bx,by)){moveAntTo(bx,by);return;}}}
 
   function tryDropQueenFromPlantEat(atX,atY){
     if(p.qcd>0)return false;
@@ -807,6 +808,7 @@ function stepAnt(x,y,p){
         if(!p.alpha){if(phero>0.05)score+=Math.floor(phero*30);}else{if(phero<0.15)score+=3;}
         score+=hazardPenalty(nx,ny,p.g[4]/255);
         const db=get(nx+gx2,ny+gy2);if(db?.t===T.WATER||db?.t===T.LAVA||db?.t===T.ACID)score-=5;
+        if(!np&&isLucidNode(nx,ny))score+=10; // lucid ring: aerial platform bonus
         moveCandidates.push([nx,ny,score]);
       } else if(np.t===T.CLAY_HARD&&!np.reinforced){
         const ddx=nx-x,ddy=ny-y;const isDown=(ddx===gx2&&ddy===gy2),isUp=(ddx===-gx2&&ddy===-gy2);
@@ -814,7 +816,6 @@ function stepAnt(x,y,p){
         digCandidates.push([nx,ny,weight]);
       }
     }
-    lucidConstrainMoves(moveCandidates,x,y);
     if(moveCandidates.length){
       moveCandidates.sort((a,b)=>b[2]-a[2]);const best=moveCandidates[0][2];
       const bestCells=moveCandidates.filter(c=>c[2]===best);
@@ -910,8 +911,8 @@ function stepTermite(x,y,p){
     grid[destI]=p;p.cellX=nx;p.cellY=ny;
   }
 
-  // Gravity
-  if(!touchingSolid&&!belowCell){if(inB(bx,by)){if(!get(bx,by)){moveTermiteTo(bx,by);return;}}}
+  // Gravity — lucid ring nodes act as aerial platforms
+  if(!touchingSolid&&!belowCell&&!isLucidNode(x,y)){if(inB(bx,by)){if(!get(bx,by)){moveTermiteTo(bx,by);return;}}}
 
   // EATING — termites gnaw adjacent wood directly (main energy source) + other food
   for(const[nx,ny] of nbrs){
@@ -957,6 +958,7 @@ function stepTermite(x,y,p){
         if(np?.t===T.WOOD)score+=12; // prefer traversing wood
         const phero=pheroGrid[idx(nx,ny)];if(phero>0.05)score+=Math.floor(phero*20);
         score+=hazardPenalty(nx,ny,p.g[4]/255);
+        if(!np&&isLucidNode(nx,ny))score+=10; // lucid ring: aerial platform bonus
         moveCandidates.push([nx,ny,score]);
       } else if(np.t===T.CLAY_HARD&&!np.reinforced){
         const ddx=nx-x,ddy=ny-y;
@@ -964,7 +966,6 @@ function stepTermite(x,y,p){
         digCandidates.push([nx,ny,weight]);
       }
     }
-    lucidConstrainMoves(moveCandidates,x,y);
     if(moveCandidates.length){
       moveCandidates.sort((a,b)=>b[2]-a[2]);
       const best=moveCandidates[0][2];
@@ -1107,7 +1108,8 @@ function stepSpider(x,y,p){
   // and drains HP rapidly if truly stuck — preventing ground pooling.
   const onSurface=belowCell&&(isSpiderSurface(belowCell.t)||belowCell.t===T.WATER);
   const canCling=getCardinals(x,y).some(([nx,ny])=>{const np=get(nx,ny);return np&&isSpiderSurface(np.t);});
-  if(!onSurface&&!canCling){
+  const onLucidRing=isLucidNode(x,y); // lucid ring = temporary aerial surface for spiders too
+  if(!onSurface&&!canCling&&!onLucidRing){
     // Try to fall into empty space
     if(inB(bx,by)&&!get(bx,by)){moveSpiderTo(bx,by);return;}
     // Stuck on non-surface ground (sand, clay…) — bleed out
@@ -1155,8 +1157,8 @@ function stepSpider(x,y,p){
       const bx2=tx2+ddx,by2=ty2+ddy;const beyond=inB(bx2,by2)?get(bx2,by2):null;
       if(beyond?.t===T.FIRE||beyond?.t===T.LAVA){if(np?.t===T.ANT||np?.t===T.MITE){np.hp-=30;p.energy+=15;}}
     }
-    // Step toward prey only along web network (lucid: only if destination is on a wave node)
-    if(onWebNetwork(nx,ny)&&(lucidFieldAt(x,y)<0.08||isLucidNode(nx,ny))){moveSpiderTo(nx,ny);}
+    // Step toward prey along web network or lucid ring nodes (aerial platforms)
+    if(onWebNetwork(nx,ny)||(onLucidRing&&(!get(nx,ny)||get(nx,ny)?.t===T.DETRITUS))){moveSpiderTo(nx,ny);}
     // Attack prey that is directly adjacent regardless of web (reach through the gap)
     else if(np?.t===T.ANT||np?.t===T.TERMITE||np?.t===T.MITE||np?.t===T.EGG){
       const packBonus=svt.includes('pack')&&getNeighbors(x,y).some(([ax,ay])=>{const ap=get(ax,ay);return ap?.t===T.SPIDER;})?2:1;
@@ -1196,10 +1198,10 @@ function stepSpider(x,y,p){
         if(!np||np.t===T.DETRITUS){
           if(getNeighbors(nx,ny).some(([ax,ay])=>get(ax,ay)?.t===T.WEB))
             return[nx,ny,3+hazardPenalty(nx,ny,resilience)];
+          if(!np&&isLucidNode(nx,ny))return[nx,ny,5+hazardPenalty(nx,ny,resilience)]; // climb rings
         }
         return null;
       }).filter(Boolean);
-      lucidConstrainMoves(scored,x,y);
       scored.sort((a,b)=>b[2]-a[2]);
       const best=scored[0];
       if(best&&best[2]>0)moveSpiderTo(best[0],best[1]);
@@ -1375,7 +1377,6 @@ function stepMite(x,y,p){
   const steps=onIce?(3+Math.floor(speed*2))*iceStepMult:1+Math.floor(speed*1.5);
   for(let s=0;s<steps;s++){
     const dirs=getNeighbors(x,y).filter(([nx,ny])=>{const np=get(nx,ny);if(np&&np.t!==T.FUNGI&&np.t!==T.DETRITUS)return false;const db=get(nx+gv.x,ny+gv.y);return!(db?.t===T.WATER||db?.t===T.ACID);});
-    lucidConstrainMoves(dirs,x,y);
     if(!dirs.length)break;const[mx,my]=dirs[Math.floor(Math.random()*dirs.length)];const prevX=x,prevY=y;swap(x,y,mx,my);[x,y]=[mx,my];
     // acid_trail: leave acid at previous position occasionally
     if(mvt.includes('acid_trail')&&Math.random()<0.05&&!grid[idx(prevX,prevY)]){grid[idx(prevX,prevY)]={t:T.ACID,age:0,ttl:30};}
@@ -1558,10 +1559,11 @@ function stepHuntsman(x,y,p){
     grid[destI]=p; x=nx; y=ny;
   }
 
-  // Gravity fallthrough when floating free
+  // Gravity fallthrough when floating free — lucid ring nodes act as aerial platforms
   const onSurface=belowCell&&(isSpiderSurface(belowCell.t)||belowCell.t===T.WATER);
   const canCling=getCardinals(x,y).some(([nx,ny])=>{const np=get(nx,ny);return np&&isSpiderSurface(np.t);});
-  if(!onSurface&&!canCling&&!belowCell){if(inB(bx,by)&&!get(bx,by)){moveHuntsmanTo(bx,by);return;}}
+  const onLucidRing=isLucidNode(x,y);
+  if(!onSurface&&!canCling&&!belowCell&&!onLucidRing){if(inB(bx,by)&&!get(bx,by)){moveHuntsmanTo(bx,by);return;}}
   const nbrs=getNeighbors(x,y);
 
   // Web-building — OLD style: genome-only base, random placement, 3x web_boost, long TTL 200-350
@@ -1588,9 +1590,8 @@ function stepHuntsman(x,y,p){
       const bx2=tx2+ddx,by2=ty2+ddy;const beyond=inB(bx2,by2)?get(bx2,by2):null;
       if(beyond?.t===T.FIRE||beyond?.t===T.LAVA){if(np?.t===T.ANT||np?.t===T.MITE){np.hp-=30;p.energy+=15;}}
     }
-    // FREE-ROAM movement — can step on any open cell, web, wood, or detritus
-    // (lucid: only if destination is on a wave node while inside the field)
-    if((!np||np.t===T.WEB||np.t===T.WOOD||np.t===T.DETRITUS)&&(lucidFieldAt(x,y)<0.08||isLucidNode(nx,ny))){moveHuntsmanTo(nx,ny);}
+    // FREE-ROAM movement — can step on any open cell, web, wood, detritus, or lucid ring node
+    if(!np||np.t===T.WEB||np.t===T.WOOD||np.t===T.DETRITUS){moveHuntsmanTo(nx,ny);}
     else if(np?.t===T.ANT||np?.t===T.TERMITE||np?.t===T.MITE||np?.t===T.EGG){
       const packBonus=svt.includes('pack')&&getNeighbors(x,y).some(([ax,ay])=>{const ap=get(ax,ay);return ap?.t===T.HUNTSMAN;})?2:1;
       const dmg=(15+Math.floor(aggression*35))*packBonus;
@@ -1630,11 +1631,11 @@ function stepHuntsman(x,y,p){
         if(np?.t===T.WOOD)return[nx,ny,3+hazardPenalty(nx,ny,resilience)];
         if(!np||np.t===T.DETRITUS){
           const adjSurf=getNeighbors(nx,ny).some(([ax,ay])=>{const ap=get(ax,ay);return ap&&isSpiderSurface(ap.t);});
-          return[nx,ny,(adjSurf?2:1)+hazardPenalty(nx,ny,resilience)];
+          const ringBonus=!np&&isLucidNode(nx,ny)?4:0;
+          return[nx,ny,(adjSurf?2:1)+ringBonus+hazardPenalty(nx,ny,resilience)];
         }
         return null;
       }).filter(Boolean);
-      lucidConstrainMoves(candidates,x,y);
       candidates.sort((a,b)=>b[2]-a[2]);
       const best=candidates[0];
       if(best&&best[2]>0)moveHuntsmanTo(best[0],best[1]);
