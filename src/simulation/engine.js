@@ -1100,10 +1100,18 @@ function stepSpider(x,y,p){
     grid[destI]=p; x=nx; y=ny;
   }
 
-  // Gravity fallthrough when floating free
+  // Gravity — spider requires a valid surface (web/wall/wood/stone/ice) or water to stand on.
+  // If it lands on open ground (sand/clay/etc) it falls through empty space below it,
+  // and drains HP rapidly if truly stuck — preventing ground pooling.
   const onSurface=belowCell&&(isSpiderSurface(belowCell.t)||belowCell.t===T.WATER);
   const canCling=getCardinals(x,y).some(([nx,ny])=>{const np=get(nx,ny);return np&&isSpiderSurface(np.t);});
-  if(!onSurface&&!canCling&&!belowCell){if(inB(bx,by)&&!get(bx,by)){moveSpiderTo(bx,by);return;}}
+  if(!onSurface&&!canCling){
+    // Try to fall into empty space
+    if(inB(bx,by)&&!get(bx,by)){moveSpiderTo(bx,by);return;}
+    // Stuck on non-surface ground (sand, clay…) — bleed out
+    p.hp-=6;
+    if(p.hp<=0){set(x,y,null);popDecr(p);return;}
+  }
   const nbrs=getNeighbors(x,y);
 
   // Lay web — prefer cells that expand the network (not already surrounded by web)
@@ -1117,7 +1125,7 @@ function stepSpider(x,y,p){
       });
       scored.sort((a,b)=>b[2]-a[2]);
       const[wx,wy]=scored[0];
-      grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:140+Math.floor(Math.random()*80)};
+      grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:450+Math.floor(Math.random()*150)};
     }
   }
 
@@ -1516,7 +1524,7 @@ function stepQueenSpider(x,y,p){
       const count=Math.min(2,nbrs.length);
       for(let i=0;i<count;i++){
         const[wx,wy]=nbrs[Math.floor(Math.random()*nbrs.length)];
-        grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:150+Math.floor(Math.random()*80)};
+        grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:500+Math.floor(Math.random()*200)};
       }
     }
   }
