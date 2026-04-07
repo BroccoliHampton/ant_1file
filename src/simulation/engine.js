@@ -5862,7 +5862,8 @@ function saveCreature(){
     labElemBehaviors={};
     return;
   }
-  if(customCreatures.size>=5){showEventToast('LAB FULL','Delete a creature to make room (max 5)');return;}
+  const labCount=[...customCreatures.values()].filter(c=>c.fromLab).length;
+  if(labCount>=5){showEventToast('LAB FULL','Delete a creature to make room (max 5)');return;}
   const c=readLabForm();
   c.name=_dom('lab-name').value.trim()||`Creature ${nextCustomId-T.CUSTOM_BASE+1}`;
   c.id=nextCustomId++;
@@ -5881,12 +5882,13 @@ function saveCreature(){
 
 function updateLabHistory(){
   const el=_dom('lab-history');
-  const count=customCreatures.size;
+  const labList=[...customCreatures.values()].filter(c=>c.fromLab);
+  const count=labList.length;
   const full=count>=5;
   // Show slot counter
   const slots=`<div style="font-size:7px;color:${full?'var(--accent2)':'var(--dim)'};margin-bottom:8px;letter-spacing:1px;">SLOTS: ${count}/5${full?' — DELETE ONE TO CREATE MORE':''}</div>`;
   if(count===0){el.innerHTML=slots+'<div class="history-empty">No creatures yet.</div>';return;}
-  el.innerHTML=slots+[...customCreatures.values()].map(c=>`
+  el.innerHTML=slots+labList.map(c=>`
     <div class="history-item ${historySelectedId===c.id?'active':''}"
       onclick="selectLabHistoryCreature(${c.id})"
       onmouseenter="showCreatureCard(${c.id},event.clientX,event.clientY)"
@@ -5902,7 +5904,7 @@ function updateLabHistory(){
       </div>
       <div style="font-size:6px;color:var(--dim);margin-top:2px;">${c.movement?.icon||''} ${c.movement?.name||''} · ${c.diet?.icon||''} ${c.diet?.name||''}</div>
     </div>
-  `).join('')+(historySelectedId?`<div class="history-actions"><button onclick="spawnFromHistory(false)">🐜 WORKER</button><button class="queen" onclick="spawnFromHistory(true)">👑 QUEEN</button></div>`:'')+`<button onclick="editingCreatureId=null;openLab()" style="display:block;width:100%;margin-top:8px;background:transparent;border:1px dashed var(--border);color:var(--dim);font-family:var(--mono);font-size:7px;padding:5px;cursor:pointer;letter-spacing:1px;" ${customCreatures.size>=5?'disabled title="Lab full"':''}>+ NEW CREATURE</button>`;
+  `).join('')+(historySelectedId?`<div class="history-actions"><button onclick="spawnFromHistory(false)">🐜 WORKER</button><button class="queen" onclick="spawnFromHistory(true)">👑 QUEEN</button></div>`:'')+`<button onclick="editingCreatureId=null;openLab()" style="display:block;width:100%;margin-top:8px;background:transparent;border:1px dashed var(--border);color:var(--dim);font-family:var(--mono);font-size:7px;padding:5px;cursor:pointer;letter-spacing:1px;" ${full?'disabled title="Lab full"':''}>+ NEW CREATURE</button>`;
 }
 
 function selectLabHistoryCreature(id){ historySelectedId=id; updateLabHistory(); }
