@@ -1953,17 +1953,16 @@ function lucidConstrainMoves(cands,x,y){
 }
 
 function stepLucid(x,y,p){
-  p.ttl=(p.ttl||200)-1;
-  if(p.ttl<=0){grid[idx(x,y)]=null;return;}
-  for(const[nx,ny] of getNeighbors(x,y)){
-    const np=get(nx,ny);
-    if(np?.g||np?.customType!==undefined){
-      if(lucidSources.length<MAX_LUCID_SOURCES)
-        lucidSources.push({x:nx,y:ny,age:0,hue:Math.floor(Math.random()*360)});
-      grid[idx(x,y)]=null;return;
-    }
+  // Activate immediately on first step — wave source at lucid's own position,
+  // no need to flow to a creature first (that wait was the perceived "cooldown").
+  if(!p.srcSpawned){
+    p.srcSpawned=true;
+    if(lucidSources.length<MAX_LUCID_SOURCES)
+      lucidSources.push({x,y,age:0,hue:Math.floor(Math.random()*360)});
+    grid[idx(x,y)]=null;return;
   }
-  tryFlow(x,y);
+  // Fallback: if for some reason the cell persists (shouldn't happen), clean up
+  grid[idx(x,y)]=null;
 }
 function createChromaCreature(hue){
   const archs=['creature','creature','creature','plant','fungi'];
