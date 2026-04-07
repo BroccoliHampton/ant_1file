@@ -333,6 +333,7 @@ const KINGDOM_HUE={[T.PLANT]:130,[T.ANT]:100,[T.TERMITE]:175,[T.QUEEN]:35,[T.QUE
 let grid=new Array(W*H).fill(null);
 let lightGrid=new Float32Array(W*H);
 let pheroGrid=new Float32Array(W*H); // ant pheromone trail
+const lucidGrid=new Float32Array(W*H); // cached lucid field — rebuilt once per tick
 let sunX=Math.floor(W*0.5),sunY=10,sunActive=true;
 let tickCount=0;
 let imageData,pixels;
@@ -1927,32 +1928,37 @@ function stepDrug(x,y,p,buffType,buffTTL){
 // Returns the wave intensity at cell (x,y) from all active lucid sources (0-1).
 // Mirrors the visual overlay math in getColor so the "lines" creatures follow
 // are exactly the bright rings players can see.
-function lucidFieldAt(x,y){
-  if(!lucidSources.length)return 0;
-  let best=0;
+// Rebuild lucidGrid once per tick — O(W*H*sources) done once centrally,
+// so creature step functions just do a cheap array lookup instead of
+// calling Math.sqrt per creature per neighbor (which was freezing the sim).
+function rebuildLucidGrid(){
+  lucidGrid.fill(0);
+  if(!lucidSources.length)return;
   for(const src of lucidSources){
-    const dx=x-src.x,dy=y-src.y;
-    const dist=Math.sqrt(dx*dx+dy*dy);
     const ageFade=Math.max(0,1-src.age/LUCID_LIFETIME);
-    // Standing wave: rings stay at fixed distances from the source for its
-    // whole lifetime, so platforms don't sweep away after a few ticks.
-    // sin² peaks at every odd integer distance (1, 3, 5, 7 … cells out).
-    // The visual in getColor still uses the original traveling wave — the
-    // expanding colour rings are cosmetic; only the physics uses this.
-    const s=Math.sin(dist*0.5*Math.PI);
-    const intensity=s*s*ageFade*(1-dist/(W*1.2));
-    if(intensity>best)best=intensity;
+    if(ageFade<=0)continue;
+    // Only compute within a reasonable radius to keep cost bounded
+    const maxR=Math.min(W,Math.ceil(W*1.1));
+    for(let dy=-maxR;dy<=maxR;dy++){
+      const ny=src.y+dy;if(ny<0||ny>=H)continue;
+      for(let dx=-maxR;dx<=maxR;dx++){
+        const nx=src.x+dx;if(nx<0||nx>=W)continue;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        const s=Math.sin(dist*0.5*Math.PI);
+        const v=s*s*ageFade*(1-dist/(W*1.2));
+        if(v>0){const i2=ny*W+nx;if(v>lucidGrid[i2])lucidGrid[i2]=v;}
+      }
+    }
   }
-  return best;
 }
-// A cell is "on the path" when it sits on a bright wave band.
-function isLucidNode(x,y){return lucidFieldAt(x,y)>0.55;}
-// Mutates the candidate array in-place: if the creature is inside the field,
-// keep only node cells. Falls back to all candidates if no node is adjacent.
+function lucidFieldAt(x,y){return lucidGrid[y*W+x]||0;}
+// A cell is "on the path" when it sits on a bright ring.
+function isLucidNode(x,y){return lucidGrid[y*W+x]>0.55;}
+// (kept for reference, no longer called)
 function lucidConstrainMoves(cands,x,y){
   if(!lucidSources.length||!cands.length)return;
   const myField=lucidFieldAt(x,y);
-  if(myField<0.08)return; // outside field — unconstrained
+  if(myField<0.08)return;
   const nodes=cands.filter(c=>isLucidNode(c[0],c[1]));
   if(nodes.length>0){cands.length=0;cands.push(...nodes);}
 }
@@ -3417,11 +3423,12 @@ function simStep(){
   }
   if(bacteriaRunning&&tickCount%BACTERIA_TICK_RATE===0)stepBacteriaGoL();
 
-  // Age lucid wave sources
+  // Age lucid wave sources, then rebuild the cached field grid once
   for(let i=lucidSources.length-1;i>=0;i--){
     lucidSources[i].age++;
     if(lucidSources[i].age>LUCID_LIFETIME)lucidSources.splice(i,1);
   }
+  rebuildLucidGrid();
   if(entropyRate>0)stepEntropy();
   tickCount++;
 }
@@ -4628,7 +4635,7 @@ function resetSim(){
   grid.fill(null);lightGrid.fill(0);pheroGrid.fill(0);
   rainActive=false;acidRainActive=false;
   chromaStrains.clear();
-  lucidSources.length=0;
+  lucidSources.length=0;lucidGrid.fill(0);
   strainRegistry.clear();nextStrain=1;
   tickCount=0;
   Object.keys(POP).forEach(k=>POP[k]=0);
