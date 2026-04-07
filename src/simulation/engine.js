@@ -623,10 +623,10 @@ function stepPlant(x,y,p){
     if(np.t===T.SALT)p.energy=Math.max(0,p.energy-1);
     if(np.t===T.ASH)p.energy=Math.min(255,p.energy+0.5);
     if(np.t===T.MITE&&Math.random()<0.12){set(nx,ny,null);popDecr(np);}
-    // Plants choke out spider web — convert adjacent web into plant cells (fast takeover)
-    if(np.t===T.WEB&&Math.random()<0.20&&POP[T.PLANT]<POP_MAX[T.PLANT]){
+    // Plants choke out spider web — convert adjacent web into plant cells (aggressive takeover)
+    if(np.t===T.WEB&&Math.random()<0.55&&POP[T.PLANT]<POP_MAX[T.PLANT]){
       const ng=mutateGenome(p.g,mutRate);
-      grid[idx(nx,ny)]=agentWithStrain(T.PLANT,ng,p.sid,{energy:100,growTimer:Math.floor(15+Math.random()*20)});
+      grid[idx(nx,ny)]=agentWithStrain(T.PLANT,ng,p.sid,{energy:100,growTimer:Math.floor(8+Math.random()*12)});
       popIncr({t:T.PLANT,sid:p.sid});
     }
   }
