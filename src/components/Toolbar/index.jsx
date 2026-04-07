@@ -18,8 +18,8 @@ export default function Toolbar() {
     <div id="toolbar">
       <ToolRow      activeTool={activeTool}      onToolChange={setActiveTool} />
 
-      {/* Stamp tool config — engine toggles display when stamp tool is active */}
-      <div id="stamp-picker" style={{display:'none',padding:'4px 8px',background:'var(--panel)',borderTop:'1px solid var(--btn-border)'}}>
+      {/* Stamp tool config — shown when stamp tool is active */}
+      <div id="stamp-picker" style={{display: activeTool === 'stamp' ? 'block' : 'none',padding:'4px 8px',background:'var(--panel)',borderTop:'1px solid var(--btn-border)'}}>
         <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
           <span style={{fontSize:'8px',color:'var(--dim)',letterSpacing:'2px'}}>STAMP</span>
           <select id="stamp-sel" style={{flex:1,fontSize:'8px',padding:'2px 4px',background:'var(--btn-bg)',border:'1px solid var(--btn-border)',color:'var(--text)',borderRadius:'3px',fontFamily:'var(--mono)'}}>
@@ -84,6 +84,10 @@ export default function Toolbar() {
 
       <CategoryTabs activeCat={activeCat}        onCatChange={setActiveCat} />
       <ElementTray  activeCat={activeCat}        activeElement={activeElement} onElementChange={setActiveElement} />
+
+      {/* Custom creature list — populated by engine; visible when any custom creatures exist */}
+      <div id="custom-list" style={{overflowY:'auto',maxHeight:'90px'}} />
+
       <ControlRow />
     </div>
   )

@@ -65,6 +65,7 @@ export const K_COLORS = {
   [T.SPIDER]:'#505058', [T.FUNGI]:'#8c32c8', [T.MITE]:'#ff8c00',
   [T.QUEEN_SPIDER]:'#cc44ff', [T.QUEEN_MITE]:'#ffdd44',
   [T.HUNTSMAN]:'#c86020', [T.QUEEN_HUNTSMAN]:'#e89000',
+  [T.TERMITE]:'#c87820', [T.QUEEN_TERMITE]:'#f0a030',
 };
 
 export const GENOME_DEFAULTS = {
@@ -104,8 +105,8 @@ export const ELEMENTS = [
   {cat:'life', key:'queen',       label:'QUEEN ANT',    col:'#ff8800', tag:'👑'},
   {cat:'life', key:'spider',      label:'SPIDER',       col:'#505058', tag:'🕷'},
   {cat:'life', key:'queenSpider', label:'QUEEN SPIDER', col:'#cc44ff', tag:'🕸👑'},
-  {cat:'life', key:'termite',     label:'TERMITE',      col:'#20b8a8', tag:'🪲'},
-  {cat:'life', key:'queenTermite',label:'Q.TERMITE',    col:'#40d8c0', tag:'🪲👑'},
+  {cat:'life', key:'termite',     label:'TERMITE',      col:'#c87820', tag:'🪲'},
+  {cat:'life', key:'queenTermite',label:'Q.TERMITE',    col:'#f0a030', tag:'🪲👑'},
   {cat:'life', key:'huntsman',      label:'HUNTSMAN',       col:'#c86020', tag:'🕷'},
   {cat:'life', key:'queenHuntsman', label:'Q.HUNTSMAN',     col:'#e89000', tag:'🕸👑'},
   {cat:'life', key:'mite',        label:'MITE',         col:'#ff8c00', tag:'🪲'},
@@ -133,4 +134,5 @@ export const ELEMENTS = [
   // rx
   {cat:'rx', key:'lucid',       label:'LUCID',       col:'#dd88ff', tag:'🌈'},
   {cat:'rx', key:'crank',       label:'CRANK',       col:'#ff6600', tag:'💥'},
+  {cat:'rx', key:'flaca',       label:'FLACA',       col:'#aaddff', tag:'🌬'},
 ];

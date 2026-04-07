@@ -92,6 +92,7 @@ const T = {
   CALCIFIER:65,    // Salt + Stone → armor + slow
   SPORE_BOMB:66,   // Fungi + Gunpowder → explode on death
   GIGANTISM:67,    // Lava + Ice → double HP/damage
+  FLACA:68,        // RX — launches creatures far away with no fire or explosion
   // Conway's Game of Life machines
   MACHINE:70,      // live GoL cell
   MACHINE_DEAD:71, // recently-died GoL cell (fades out)
@@ -121,7 +122,7 @@ const DENSITY={
   [T.LAVA]:8,[T.STONE]:7,[T.STEAM]:0.1,[T.ICE]:3,
   [T.SMOKE]:0.15,[T.OXYGEN]:0.12,[T.WOOD]:4,[T.ASH]:0.8,[T.ACID]:2.1,[T.GUNPOWDER]:4.5,[T.SALT]:3,
   // Pharmacy drugs (liquid-like)
-  [T.LUCID]:2,[T.CHROMADUST]:2,[T.CRANK]:2,
+  [T.LUCID]:2,[T.CHROMADUST]:2,[T.CRANK]:2,[T.FLACA]:2,
   [T.JELLY]:4.5,
 };
 
@@ -325,7 +326,7 @@ function registerStrain(type,genome,parentId=null){
 }
 
 // Kingdom base hues (for color generation)
-const KINGDOM_HUE={[T.PLANT]:130,[T.ANT]:100,[T.TERMITE]:175,[T.QUEEN]:35,[T.QUEEN_TERMITE]:170,[T.SPIDER]:0,[T.FUNGI]:280,[T.MITE]:40,[T.QUEEN_SPIDER]:285,[T.QUEEN_MITE]:50,[T.HUNTSMAN]:22,[T.QUEEN_HUNTSMAN]:38};
+const KINGDOM_HUE={[T.PLANT]:130,[T.ANT]:100,[T.TERMITE]:28,[T.QUEEN]:35,[T.QUEEN_TERMITE]:32,[T.SPIDER]:0,[T.FUNGI]:280,[T.MITE]:40,[T.QUEEN_SPIDER]:285,[T.QUEEN_MITE]:50,[T.HUNTSMAN]:22,[T.QUEEN_HUNTSMAN]:38};
 
 // ================================================================
 //  WORLD STATE
@@ -1119,17 +1120,12 @@ function stepSpider(x,y,p){
   }
   const nbrs=getNeighbors(x,y);
 
-  // Lay web — prefer cells that expand the network (not already surrounded by web)
-  if(Math.random()<(0.08+p.g[5]/255*0.12)*(svt.includes('web_boost')?1.8:1)){
+  // Lay web aggressively — fills empty space like plant growth
+  // Base rate ~0.45/tick (up from 0.08) so colonies quickly build dense networks
+  if(Math.random()<(0.45+p.g[5]/255*0.30)*(svt.includes('web_boost')?1.5:1)){
     const wc=nbrs.filter(([nx,ny])=>!get(nx,ny)&&!nearType(nx,ny,T.ACID,T.LAVA));
     if(wc.length){
-      // Prefer frontier cells (fewer existing web neighbors = more expansion)
-      const scored=wc.map(([nx,ny])=>{
-        const adjWeb=getNeighbors(nx,ny).filter(([ax,ay])=>get(ax,ay)?.t===T.WEB).length;
-        return[nx,ny,6-adjWeb]; // fewer web neighbors → higher score (expand outward)
-      });
-      scored.sort((a,b)=>b[2]-a[2]);
-      const[wx,wy]=scored[0];
+      const[wx,wy]=wc[Math.floor(Math.random()*wc.length)];
       grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:450+Math.floor(Math.random()*150)};
     }
   }
@@ -2074,6 +2070,32 @@ function stepCrank(x,y,p){
   }
   tryFlow(x,y);
 }
+function stepFlaca(x,y,p){
+  p.ttl=(p.ttl||200)-1;
+  if(p.ttl<=0){grid[idx(x,y)]=null;return;}
+  for(const[nx,ny] of getNeighbors(x,y)){
+    const np=get(nx,ny);
+    if(np?.g||np?.customType!==undefined){
+      const angle=Math.random()*Math.PI*2;
+      const cdx=Math.cos(angle),cdy=Math.sin(angle);
+      const dist=80+Math.floor(Math.random()*120); // 3-5× farther than crank, no fire
+      // Find landing cell — skip past any occupied cells along the arc
+      let lx=nx,ly=ny;
+      for(let i=1;i<=dist;i++){
+        const tx=Math.round(nx+cdx*i),ty=Math.round(ny+cdy*i);
+        if(!inB(tx,ty))break;
+        if(!get(tx,ty)){lx=tx;ly=ty;}
+        // Don't embed in solids
+      }
+      const creature=np;
+      grid[idx(nx,ny)]=null;
+      grid[idx(x,y)]=null;
+      if(inB(lx,ly)&&!get(lx,ly)){grid[idx(lx,ly)]=creature;}
+      return;
+    }
+  }
+  tryFlow(x,y);
+}
 function stepVenomBrew(x,y,p){grid[idx(x,y)]=null;}
 function stepPheromone(x,y,p){grid[idx(x,y)]=null;}
 function stepCalcifier(x,y,p){grid[idx(x,y)]=null;}
@@ -2545,6 +2567,7 @@ function stepParticle(x,y){
   if(p.t===T.LUCID){stepLucid(x,y,p);return;}
   if(p.t===T.CHROMADUST){stepChromadust(x,y,p);return;}
   if(p.t===T.CRANK){stepCrank(x,y,p);return;}
+  if(p.t===T.FLACA){stepFlaca(x,y,p);return;}
   if(p.t===T.VENOM_BREW){stepVenomBrew(x,y,p);return;}
   if(p.t===T.PHEROMONE){stepPheromone(x,y,p);return;}
   if(p.t===T.CALCIFIER){stepCalcifier(x,y,p);return;}
@@ -2811,6 +2834,7 @@ function getColor(p,x,y){
       break;
     }
     case T.CRANK:{const fl=Math.random()<0.3;r=255;g=fl?200:80;b=fl?60:20;break;}
+    case T.FLACA:{const fl=Math.random()<0.25;r=fl?220:160;g=fl?240:200;b=255;break;} // icy blue-white
     case T.VENOM_BREW:{const fl=Math.random();r=fl<0.5?100:60;g=fl<0.3?200:160;b=fl<0.5?80:180;break;}
     case T.PHEROMONE:{const fl=Math.random()<0.3;r=fl?220:180;g=fl?160:120;b=fl?40:20;break;}
     case T.CALCIFIER:{const v=Math.floor(Math.random()*15);r=140+v;g=140+v;b=150+v;break;}
@@ -2824,8 +2848,8 @@ function getColor(p,x,y){
     case T.JELLY:{const w=Math.sin((p.age||0)*0.18)*15;r=180+w|0;g=80+(w*0.5)|0;b=160+w|0;break;} // shimmery pink-purple
     case T.WORM:{const seg=(p.age||0)%6;r=200-(seg*8);g=80+(seg*4);b=60;break;} // segmented pink-red
     case T.QUEEN_SPIDER:{const f=Math.random()<0.15;r=f?220:170;g=f?80:50;b=f?255:210;break;} // vivid purple
-    case T.TERMITE:{const v=Math.floor(Math.random()*20);r=25+v;g=175+v;b=160+v;break;} // teal
-    case T.QUEEN_TERMITE:{const f=Math.random()<0.2;r=f?40:25;g=f?220:200;b=f?210:185;break;} // bright teal-cyan
+    case T.TERMITE:{const v=Math.floor(Math.random()*20);r=180+v;g=95+v;b=20;break;} // warm amber-orange
+    case T.QUEEN_TERMITE:{const f=Math.random()<0.2;r=f?255:230;g=f?200:160;b=f?60:30;break;} // bright golden-orange
     case T.HUNTSMAN:{const f=Math.random()<0.2;r=f?230:190;g=f?110:80;b=f?40:25;break;} // warm rust-orange
     case T.QUEEN_HUNTSMAN:{const f=Math.random()<0.15;r=f?255:235;g=f?180:140;b=f?20:10;break;} // golden amber
     case T.FROGSTONE: {
@@ -3859,6 +3883,7 @@ const TIP_LABELS={
   [T.PLANT_WALL]:'PLANT WALL',[T.WEB]:'WEB',[T.SPORE]:'SPORE',[T.EGG]:'EGG',
   [T.TUNNEL_WALL]:'TUNNEL WALL',
   [T.FROGSTONE]:'FROGSTONE',
+  [T.FLACA]:'FLACA',
 };
 const TIP_COLORS={
   [T.WALL]:'#888',[T.FRIDGE_WALL]:'#44aaee',[T.CLAY]:'#7a8599',[T.CLAY_HARD]:'#5e6a7a',[T.SAND]:'#c4a35a',[T.GOLD_SAND]:'#ffc800',
@@ -3867,7 +3892,8 @@ const TIP_COLORS={
   [T.PLANT]:K_COLORS[T.PLANT],[T.ANT]:K_COLORS[T.ANT],[T.QUEEN]:K_COLORS[T.QUEEN],
   [T.SPIDER]:K_COLORS[T.SPIDER],[T.FUNGI]:K_COLORS[T.FUNGI],[T.MITE]:K_COLORS[T.MITE],
   [T.PLANT_WALL]:'#226622',[T.WEB]:'#aaaaaa',[T.SPORE]:'#9955cc',[T.EGG]:'#ddcc88',
-  [T.FROGSTONE]:'#88cc44',[T.TERMITE]:'#20b8a8',[T.QUEEN_TERMITE]:'#40d8c0',[T.TUNNEL_WALL]:'#556688',
+  [T.FROGSTONE]:'#88cc44',[T.TERMITE]:'#c87820',[T.QUEEN_TERMITE]:'#f0a030',[T.TUNNEL_WALL]:'#556688',
+  [T.FLACA]:'#aaddff',
   [T.HUNTSMAN]:'#c86020',[T.QUEEN_HUNTSMAN]:'#e89000',
 };
 
@@ -4037,6 +4063,7 @@ function drawAt(cx,cy){
           break;
         }
         case 'crank':      grid[idx(px,py)]={t:T.CRANK,age:0,ttl:250};break;
+        case 'flaca':      grid[idx(px,py)]={t:T.FLACA,age:0,ttl:250};break;
         case 'mutagen': {
           // Life Seed drops a burst of random organisms at cursor + scatter several seeds
           const seedTypes=[T.ANT,T.PLANT,T.SPIDER,T.FUNGI,T.MITE,T.QUEEN,T.QUEEN_SPIDER,T.QUEEN_MITE];
@@ -4347,6 +4374,7 @@ const ELEMENTS=[
   {cat:null,      key:'lava',    label:'LAVA',       col:'#ff5500',  tag:'ρ8'},
   {cat:'PHARMACY',key:'lucid',      label:'LUCID',       col:'#dd88ff',  tag:'🌈'},
   {cat:null,      key:'crank',      label:'CRANK',       col:'#ff6600',  tag:'💥'},
+  {cat:null,      key:'flaca',      label:'FLACA',       col:'#aaddff',  tag:'🌬'},
   {cat:null,      key:'chromadust', label:'CHROMADUST',  col:'#ff00ff',  tag:'✨'},
   {cat:'ABIOTIC', key:'jelly',   label:'JELLY',      col:'#c055a0',  tag:'〰'},
   {cat:null,      key:'sand',    label:'SAND',       col:'#c4a35a',  tag:'ρ5'},
@@ -4393,7 +4421,7 @@ const MOBILE_CATS = {
   terrain: ['sand','clay','stone','wood','ice','goldSand','whiteSand','salt','water','acid','oil','ash','smoke','steam','gunpowder','wall','fire','lava'],
   life:    ['ant','queen','spider','queenSpider','termite','queenTermite','mite','queenMite','plant','seed','algae','detritus','fungi','spore'],
   special: ['mutagen','chromadust','cloud','bloomCloud','progCloud','progVoid'],
-  rx:      ['lucid','crank'],
+  rx:      ['lucid','crank','flaca'],
 };
 
 // Element tray and category tabs are now owned by React (ElementTray / CategoryTabs components).
