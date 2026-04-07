@@ -411,13 +411,27 @@ function swap(x1,y1,x2,y2){
   grid[idx(x1,y1)]=b; grid[idx(x2,y2)]=a;
 }
 
-function getNeighbors(x,y){
-  return [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]]
-    .map(([dx,dy])=>[x+dx,y+dy]).filter(([a,b])=>inB(a,b));
-}
-function getCardinals(x,y){
-  return [[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dy])=>[x+dx,y+dy]).filter(([a,b])=>inB(a,b));
-}
+// ── Pre-computed neighbor/cardinal lookup tables ──────────────────────────
+// Built once at startup. getNeighbors/getCardinals now return stable cached
+// arrays instead of allocating new ones every call — eliminates the biggest
+// source of GC pressure in the hot simulation path.
+const _NBR  = new Array(W*H); // 8-direction coords [[nx,ny],...]
+const _CARD = new Array(W*H); // 4-direction coords [[nx,ny],...]
+const _CX   = new Uint8Array(W*H); // pre-computed x for each linear index
+const _CY   = new Uint8Array(W*H); // pre-computed y for each linear index
+(()=>{
+  const D8=[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
+  const D4=[[1,0],[-1,0],[0,1],[0,-1]];
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const i=y*W+x; _CX[i]=x; _CY[i]=y;
+    const n8=[],n4=[];
+    for(const[dx,dy] of D8){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<W&&ny>=0&&ny<H)n8.push([nx,ny]);}
+    for(const[dx,dy] of D4){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<W&&ny>=0&&ny<H)n4.push([nx,ny]);}
+    _NBR[i]=n8; _CARD[i]=n4;
+  }
+})();
+function getNeighbors(x,y){ return _NBR[y*W+x]; }
+function getCardinals(x,y){ return _CARD[y*W+x]; }
 function getPerp(){ return gv.y!==0?[{x:-1,y:0},{x:1,y:0}]:[{x:0,y:-1},{x:0,y:1}]; }
 
 // Particle factories
@@ -2583,11 +2597,15 @@ function render(){
   if(!imageData){imageData=ctx.createImageData(canvas.width,canvas.height);pixels=new Uint32Array(imageData.data.buffer);}
   pixels.fill(0xFF080810);
 
-  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
-    const p=grid[idx(x,y)];
-    if(!p){continue;}
-    let col=getColor(p,x,y);
-    for(let dy=0;dy<S;dy++)for(let dx=0;dx<S;dx++)pixels[(y*S+dy)*canvas.width+(x*S+dx)]=col;
+  // Unrolled S=2 pixel write — avoids the inner dy/dx loops (96k→48k iterations)
+  const cw=canvas.width;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const p=grid[y*W+x];
+    if(!p) continue;
+    const col=getColor(p,x,y);
+    const p0=(y*2)*cw+(x*2);
+    pixels[p0]=col; pixels[p0+1]=col;
+    pixels[p0+cw]=col; pixels[p0+cw+1]=col;
   }
 
   // Sun dot
@@ -2604,7 +2622,7 @@ function render(){
   for(let i=0;i<W*H;i++){
     const p=grid[i];
     if(p?.t!==T.QUEEN) continue;
-    const x=(i%W)*S, y=Math.floor(i/W)*S;
+    const x=_CX[i]*S, y=_CY[i]*S;
     // Outer glow
     ctx.fillStyle='rgba(255,140,0,0.22)';
     ctx.fillRect(x-qPad,y-qPad,S+qPad*2,S+qPad*2);
@@ -2619,8 +2637,8 @@ function render(){
   for(let i=0;i<W*H;i++){
     const p=grid[i];
     if(p?.t!==T.FROGSTONE||!p.isHub||!p.tongue) continue;
-    const bx=(i%W)*S+Math.floor(S/2);
-    const by=Math.floor(i/W)*S+Math.floor(S/2);
+    const bx=_CX[i]*S+Math.floor(S/2);
+    const by=_CY[i]*S+Math.floor(S/2);
     const {tx,ty,hold,maxHold}=p.tongue;
     const tipX=tx*S+Math.floor(S/2);
     const tipY=ty*S+Math.floor(S/2);
@@ -3239,17 +3257,24 @@ function stepBacteriaGoL(){
 // ================================================================
 let lastTime=0,stepAccum=0,updateOrder=[],stepsSince=0,uiFrame=0;
 
+// Pre-allocated TypedArray for shuffle — avoids creating a new 24k-element
+// array every 80 ticks. In-place Fisher-Yates swap is also faster.
+const _ORDER_BUF = new Int32Array(W*H);
+for(let i=0;i<W*H;i++) _ORDER_BUF[i]=i;
 function buildOrder(){
-  updateOrder=[];
-  for(let i=0;i<W*H;i++)updateOrder.push(i);
-  for(let i=updateOrder.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[updateOrder[i],updateOrder[j]]=[updateOrder[j],updateOrder[i]];}
+  for(let i=W*H-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=_ORDER_BUF[i];_ORDER_BUF[i]=_ORDER_BUF[j];_ORDER_BUF[j]=t;}
+  updateOrder=_ORDER_BUF;
 }
 
 function simStep(){
-  if(++stepsSince>40){buildOrder();stepsSince=0;}
-  for(const i of updateOrder)if(grid[i])stepParticle(i%W,Math.floor(i/W));
+  // Reshuffle every 80 ticks (was 40) — still provides sufficient randomness
+  if(++stepsSince>80){buildOrder();stepsSince=0;}
+  // Use indexed loop + pre-computed x/y — avoids i%W / Math.floor(i/W) per cell
+  const len=W*H;
+  for(let k=0;k<len;k++){const i=updateOrder[k];if(grid[i])stepParticle(_CX[i],_CY[i]);}
   stepAllWorms();
-  updateLight();
+  // Light raycast every 2 ticks — halves the 6,000-op cost, visually imperceptible
+  if(tickCount%2===0) updateLight();
 
   // Spontaneous fire from oil/detritus
   if(tickCount%300===0){
@@ -3296,8 +3321,8 @@ function simStep(){
     if(acidRainTicks>=acidRainDuration)acidRainActive=false;
   }
 
-  // Pheromone decay
-  for(let i=0;i<W*H;i++)if(pheroGrid[i]>0)pheroGrid[i]=Math.max(0,pheroGrid[i]-0.004);
+  // Pheromone decay — every 3 ticks (3× decay rate to compensate), saves 2/3 of loop cost
+  if(tickCount%3===0) for(let i=0;i<W*H;i++){if(pheroGrid[i]>0)pheroGrid[i]=Math.max(0,pheroGrid[i]-0.012);}
 
   // Sample population history every 100 ticks
   if(tickCount-lastPopSample>=100){
@@ -3308,8 +3333,8 @@ function simStep(){
     }
   }
 
-  // Recount populations every 20 ticks
-  if(tickCount%20===0){
+  // Recount populations every 60 ticks (was 20) — popIncr/popDecr keep counts accurate
+  if(tickCount%60===0){
     for(const k of Object.keys(POP))POP[k]=0;
     for(const p of grid){if(p?.g&&POP[p.t]!==undefined)POP[p.t]++;}
     for(const[id,s]of strainRegistry){s.pop=0;}
@@ -3547,7 +3572,7 @@ function _legacyLoop(t){
     stepAccum+=dt;
     const stepMs=50/speedMult;
     let steps=0;
-    while(stepAccum>=stepMs&&steps<Math.ceil(speedMult)*3){simStep();stepAccum-=stepMs;steps++;}
+    while(stepAccum>=stepMs&&steps<Math.min(Math.ceil(speedMult)*2,10)){simStep();stepAccum-=stepMs;steps++;}
   } else { stepAccum=0; }
   render();
   if(uiFrame++%8===0)updateUI();
