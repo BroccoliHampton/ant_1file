@@ -38,12 +38,12 @@ Every living creature carries a 6-gene genome (each gene 0–255). Genes drift o
 ### 🐜 ANT
 **Color:** Neon green · **Cap:** 300 workers, 100 queens
 
-- **Eats:** Fungi (+30 energy), Mites (+15), Detritus/Ash (+8). Needs to eat to sustain energy.
+- **Eats:** Fungi (+30 energy), Wasps (+15), Detritus/Ash (+8). Needs to eat to sustain energy.
 - **Movement:** Follows pheromone trails through open space and clay. Tunnels through **Clay Hard** (soft clay becomes tunnel walls). Climbs plants (15+ energy required).
 - **Combat:** High-aggression ants retaliate against adjacent spiders using nearby Salt, Ash, or Gunpowder as weapons (12–50 HP splash damage).
 - **Death:** Energy ≤ 0, HP ≤ 0, drowning (water drains HP), fire, acid.
 - **Queen promotion:** Worker becomes Queen when energy ≥ 115 and it has eaten a plant. Queens only spawn if none are within 5 cells.
-- **Variants:** Tank (double HP, slow), Forager (2× plant eating), Acid-Walker (immune to acid), Aquatic (water survival), Fire-Runner (immune to fire/lava), Jumper (short-range teleport 8% per tick).
+- **Variants:** Tank Ant (double HP, slow), Forager (2× plant eating), Acid-Walker (immune to acid), Aquatic Ant (water survival), Fire-Runner (immune to fire/lava), Jumper Ant (short-range teleport 8% per tick), Tunnel-Master (3× clay dig speed).
 - **Genome defaults:** [60–100, 120–200, 100–180, 80–150, 80–140, 100–180]
 
 ### 👑 QUEEN ANT
@@ -59,14 +59,14 @@ Every living creature carries a 6-gene genome (each gene 0–255). Genes drift o
 ### 🕷 SPIDER
 **Color:** Dark gray · **Cap:** 120 workers, 25 queens
 
-- **Eats:** Ants, Termites, Mites, Eggs (25 energy on hit + 10 on kill). Scavenges Detritus (+12).
+- **Eats:** Ants, Termites, Wasps, Eggs (25 energy on hit + 10 on kill). Scavenges Detritus (+12).
 - **Movement:** **Web-constrained.** Can only move onto WEB cells or empty cells directly adjacent to web. Will never walk open ground. Falls and bleeds out (6 HP/tick) if stranded on sand/clay with no surface to cling to.
 - **Clinging surfaces:** Wall, Plant Wall, Fridge Wall, Web, Wood, Ice, Stone.
 - **Hunting:** Detects prey within 5–10 cells (gene[3]-scaled). Smoke blinds to 2 cells. Moves toward prey along the web network; attacks adjacent prey even if the attack crosses a non-web gap.
 - **Web laying:** 8–20% chance per tick to lay web in an adjacent empty cell. Prefers frontier cells (expands outward rather than carpet-bombing). Worker web lasts **450–600 ticks**. Queen web lasts **500–700 ticks**.
 - **Special attacks:** Acid spit toward prey (aggression >0.75, energy >180, 2% chance, costs 15 energy). Fire herding (aggression >0.7, pushes prey toward adjacent fire/lava).
 - **Queen promotion:** After kills with energy ≥ 110 (6% per kill), or passively at ≥ 110 energy (2% per tick). Checks 8-cell radius for existing queens.
-- **Variants:** Ambusher (2-cell hunt radius only), Web-Master (1.8× web rate), Venomous (instant kill bite), Acrobat (60% move chance, half HP), Pack-Hunter (2× damage with adjacent spider).
+- **Variants:** Ambusher (hunt radius 2 cells, instant kill), Web-Master (3× web rate), Venomous (one-shot kill), Acrobat (3× speed, half HP), Pack-Hunter (2× damage with adjacent spider).
 - **Genome defaults:** [80–140, 100–180, 80–160, 160–230, 120–200, 120–220]
 
 ### 🕸 QUEEN SPIDER
@@ -78,40 +78,19 @@ Every living creature carries a 6-gene genome (each gene 0–255). Genes drift o
 
 ---
 
-### 🕷 HUNTSMAN *(free-roaming spider)*
-**Color:** Rust-orange · **Cap:** 120 workers, 25 queens
-
-- **Behavior identical to the old pre-web-constraint spider.**
-- **Eats:** Same prey as Spider (Ants, Termites, Mites, Eggs).
-- **Movement:** **Free-roaming** — can walk on any open ground, detritus, web, or wood. Not restricted to web networks.
-- **Web laying:** Genome-only base (0–8% per tick), 3× multiplier for Web-Spinner trait. Web lasts 200–350 ticks (shorter than Spider's, since Huntsmen don't depend on it for survival).
-- **Queen promotion:** Requires energy ≥ 190 (on-kill, 5%) or ≥ 220 (passive, 0.6%). Searches a 20-cell radius for existing queens (much larger than Spider's 8-cell radius, producing fewer but more spread-out queens).
-- **Worker budding:** Requires energy > 220 (0.3% per tick) — high bar, slower colony growth.
-- **Variants:** Same pool as Spider (Ambusher, Web-Spinner, Venomous, Acrobat, Pack-Hunter).
-- **Genome defaults:** [80–140, 100–180, 80–160, 160–230, 120–200, 120–220]
-
-### 🕸 QUEEN HUNTSMAN
-**Color:** Golden amber · **Cap:** 25
-
-- **Energy:** Sun-powered (+light×2 +0.4/tick).
-- **Spawns:** Workers every 25–115 ticks (notably slower than Queen Spider). Lays 1 web cell every 40 ticks (40% chance), TTL 300.
-- **Sessile** — never moves.
-
----
-
 ### 🪲 TERMITE
-**Color:** Teal · **Cap:** 250 workers, 40 queens
+**Color:** Warm amber · **Cap:** 250 workers, 40 queens
 
-- **Eats:** Wood (primary, 30 energy, consumed at appetite×0.18 rate). Fungi (+25). Mites (+15). Detritus/Ash (+8). **Does not eat plants** (traverses them instead).
+- **Eats:** Wood (primary, 30 energy, consumed at appetite×0.18 rate). Fungi (+25). Wasps (+15). Detritus/Ash (+8). **Does not eat plants** (traverses them instead).
 - **Movement:** Deposits pheromone near wood/clay. Can walk through Plant and Plant Wall cells (traversal, no destruction). Cannot dig tunnel walls.
-- **Combat:** Fighter variant attacks adjacent Spiders and Huntsmen for 12 HP.
+- **Combat:** Fighter variant attacks adjacent Spiders for 12 HP.
 - **Queen dependency:** Queens starve without adjacent wood — they drain 0.14 energy/tick and gain only from wood-adjacent workers feeding them. Dormant queens with no wood supply die.
 - **Queen promotion:** Drop queen at 110+ energy (1.8% per tick, 60-tick cooldown). Spontaneous queen spawn at 130+ energy (1.8% chance).
 - **Variants:** Wood-Borer (3× wood eating), Mound-Builder (leaves clay trail 12%), Soldier (double HP, attacks spiders), Fungus-Farmer (never eats fungi, fungi grow faster nearby).
-- **Genome defaults:** [60–100, 120–200, 100–180, 80–150, 80–140, 100–180]
+- **Genome defaults:** [60–100, 100–180, 140–210, 40–100, 80–150, 80–160]
 
 ### 🪲 QUEEN TERMITE
-**Color:** Bright teal-cyan · **Cap:** 40
+**Color:** Bright golden-orange · **Cap:** 40
 
 - **Energy:** Sun + worker feeding (+light×0.3 +0.1/tick, requires workers to bring food).
 - **Spawns:** Workers every 12–40 ticks. Spawns 1–3 workers at once (burst on high gene[5]).
@@ -120,22 +99,24 @@ Every living creature carries a 6-gene genome (each gene 0–255). Genes drift o
 
 ---
 
-### 🪲 MITE
-**Color:** Orange · **Cap:** 200 workers, 10 queens
+### 🐝 WASP
+**Color:** Yellow-gold · **Cap:** 200 workers, 10 queens
 
-- **Eats:** Fungi (+25), Spores (+8), Ash (+4), Detritus/corpses (+12). Primary fungi predator.
-- **Movement:** Fast and skittery. ICE-SKATER: moves 1+(speed×1.5) cells normally, 3+(speed×2) on Ice. Avoids fire and acid.
-- **Combat:** High-aggression mites throw Salt or Acid at adjacent Spiders/Huntsmen (aggression >0.6, 8 HP salt / 20 HP acid).
-- **Queen promotion:** After eating fungi at 185+ energy (5% chance, 20-cell radius check), or passively at 220+ energy (0.8%).
-- **Variants:** Ice-Skater (3× speed on ice), Acid-Mite (leaves acid trail on movement, 5%), Swarmer (2× reproduction, half HP).
+- **Eats:** Spiders (primary prey, attacks when within queen's hive radius). Scavenges Detritus/Ash (+8) as fallback.
+- **Movement:** Fast and skittery. Obeys gravity (falls/floats based on density gene).
+- **Hive behavior:** Wasps check for a **Queen Wasp within 15 cells** every tick. If a queen is nearby, they actively hunt spiders (including Queen Spider). If **no queen is within range, they wander passively** and do not attack or die — they simply idle.
+- **Combat:** Attacks adjacent spiders (12–40 HP damage based on aggression gene). Gains 18 energy per hit, 12 bonus on kill.
+- **Queen promotion:** Passively at energy ≥ 220 (0.6% per tick, checks 20-cell radius for existing queens). On kill at energy ≥ 185 (5%, 20-cell radius check).
+- **Worker budding:** At energy > 200 (1.2% per tick × gene[5]).
+- **Variants:** Sentinel (attacks spiders within 2 cells on sight), Drone (2× reproduction rate, half HP), Soldier (double HP, attacks on contact).
 - **Genome defaults:** [40–80, 160–230, 120–200, 60–120, 60–120, 140–220]
 
-### 🪲 QUEEN MITE
-**Color:** Yellow · **Cap:** 10
+### 🐝 QUEEN WASP
+**Color:** Bright yellow · **Cap:** 10
 
 - **Energy:** Sun-powered (+light×2 +0.4/tick).
-- **Spawns:** Workers every 20–100 ticks.
-- **Sessile** — never moves.
+- **Spawns:** Workers every 20–100 ticks (interval based on gene[5]).
+- **Sessile** — never moves. The presence of a queen within 15 cells activates nearby wasps to hunt.
 
 ---
 
@@ -143,11 +124,11 @@ Every living creature carries a 6-gene genome (each gene 0–255). Genes drift o
 **Color:** Purple · **Cap:** 300
 
 - **Eats:** Wood (rots to Detritus, 0.8% chance when adjacent, +15 energy). Ash (+2). Gold Sand (+10, 4%). Water (moisture boost to spread rate).
-- **Parasitism:** Drains HP from adjacent Spiders and Huntsmen (8–20 energy drain + 3 HP, gene[2]-based). Spider death at fungi's hands triggers a 3–5 cell fruiting burst.
+- **Parasitism:** Drains HP from adjacent Ants, Termites, Wasps, and Spiders (8–20 energy drain + 3 HP, gene[2]-based). Spider death at fungi's hands triggers a 3–5 cell fruiting burst.
 - **Spreads:** Into adjacent empty dark cells (light < 0.4) or Stone cells. Spread rate = speed gene × 0.02 + moisture bonus.
 - **Produces:** Spores (acid spore offensive launch, 0.3% per tick upward when aggression gene > 180).
 - **Deaths:** Salt (40 HP instant), Lava/Acid (50 HP), Sunlight > 0.6 causes burn damage (light × 4 × sensitivity × resilience factor). Ice presence completely stops energy drain (dormant).
-- **Parasite trait:** Drains 1 HP/tick from ALL adjacent creatures (ants, termites, mites, spiders, huntsmen).
+- **Parasite trait:** Drains 1 HP/tick from ALL adjacent creatures (ants, termites, wasps, spiders).
 - **Explode trait:** On death, bursts 3–5 new Fungi into nearby dark cells.
 - **Genome defaults:** [40–80, 10–40, 100–180, 20–60, 80–160, 120–200]
 
@@ -160,8 +141,8 @@ Every living creature carries a 6-gene genome (each gene 0–255). Genes drift o
 - **Movement:** Grows upward toward sun (preferred), sideways, and rarely downward. Hardens older cells into **Plant Wall** (immovable).
 - **Produces:** Seeds (sideways/downward), Oxygen (upward or every 12–40 ticks when light > 0.3).
 - **Water:** Consumes adjacent Water cells (15% chance), heavily accelerates growth.
-- **Deaths:** Lava/Acid (40 HP). Ants eat it. Mites kill adjacent plants (12% chance).
-- **Spider interaction:** Plants convert nearby Web to Plant Wall (Thorny/choke behavior at 20% per tick).
+- **Deaths:** Lava/Acid (40 HP). Ants eat it. Adjacent Wasps are killed (12% chance — plants deter wasps).
+- **Spider interaction:** Plants convert nearby Web to Plant Wall (aggressive choke at 82% per tick).
 - **Genome defaults:** [80–140, 10–40, 60–100, 0–30, 100–180, 80–150]
 
 ---
@@ -171,7 +152,7 @@ Every living creature carries a 6-gene genome (each gene 0–255). Genes drift o
 
 - **Body:** Snake-like chain of 2–30 cells (head leads, tail follows).
 - **Movement:** Head advances forward/left/right every 3rd tick. Entire body follows head path.
-- **Eats:** Jelly (+30 energy, body grows up to 30 cells). Ants, Termites, Spiders, Mites, Queens (+20 energy).
+- **Eats:** Jelly (+30 energy, body grows up to 30 cells). Ants, Termites, Spiders, Wasps, Queens (+20 energy).
 - **Death:** Self-collision kills the whole worm. Energy depletion (drains 0.015/tick × body length).
 
 ---
@@ -233,7 +214,7 @@ Elements follow a **density-based gravity** system. Heavier elements fall throug
 
 | Element | Density | Behavior |
 |---------|---------|----------|
-| **Smoke** | 0.15 | Rises, drifts 40%. TTL 60 ticks. Blinds spiders/huntsmen (reduces hunt range to 2 cells). |
+| **Smoke** | 0.15 | Rises, drifts 40%. TTL 60 ticks. Blinds spiders (reduces hunt range to 2 cells). |
 | **Steam** | 0.1 | Rises, drifts 30%. TTL 80. Eventually becomes Water. |
 | **Oxygen** | 0.12 | Rises, drifts 30%. TTL 120. **Chain ignition:** if 3+ adjacent oxygen cells contact Fire/Lava, all ignite simultaneously. Released by plants. |
 
@@ -281,9 +262,6 @@ Elements follow a **density-based gravity** system. Heavier elements fall throug
 - Burns easily (95% fire ignition rate). Flammable, consumed by plant growth.
 - Provides a cling surface for spiders. Spiders without web die slowly.
 
-### 🌊 Algae
-- Static cell, inert. Visual element. Grows in wet zones.
-
 ### 🪵 Wood
 - Grows upward (trunk, priority 4), sideways (branches, 3), diagonal (2), rarely downward (1).
 - **Root requirement:** Must be anchored to Sand, Detritus, Gold Sand, Clay, or existing Wood.
@@ -313,15 +291,18 @@ Elements follow a **density-based gravity** system. Heavier elements fall throug
 - Leaves trailing sparks.
 
 ### ⚙☁ Prog Cloud *(Programmable)*
+- **Stationary and indestructible** — anchors itself, cannot be moved or destroyed by fire/lava/acid.
 - Configurable emitter. Emits any selected element type every N ticks (default 30).
-- Floats/drifts like a Cloud. Can emit: Water, Sand, Gold Sand, Acid, Lava, Oil, Salt, Ice, Fire, Steam, Ash, Smoke, Gunpowder, Detritus.
-- Destroyed by Fire, Lava, Acid.
+- **Terrain options:** Water, Acid, Sand, Gold Sand, Lava, Oil, Salt, Ice, Fire, Steam, Ash, Smoke, Gunpowder, Detritus, Stone, Clay, White Sand.
+- **Creature options:** Ant, Queen Ant, Spider, Queen Spider, Fungi, Wasp, Queen Wasp, Termite, Queen Termite, Plant — spawns with a random genome.
+- Configured via dropdown + rate slider in the toolbar.
 
 ### ⚙▼ Prog Void *(Programmable)*
 - Stationary eraser. Destroys a selected element type within a configurable radius (default 2).
-- Modes: All sand types, all agents (creatures), or a specific element.
-- Pulses visually when it absorbs something.
-- Anchors itself — reclaims its cell if displaced.
+- **Terrain options:** Same as Prog Cloud above.
+- **Creature options:** Target individual creature types to selectively cull populations.
+- **Special modes:** "All Sand" (destroys all sand variants), "All Agents" (destroys all creatures).
+- Pulses visually when it absorbs something. Anchors itself — reclaims its cell if displaced.
 
 ### 🌡 Weather Station
 - Configures a persistent rain zone. Set rain type (Water, Acid, etc.), rate, and toggle active.
@@ -355,6 +336,29 @@ These are liquid-like elements that flow and interact with creatures on contact.
 - **On creature contact:** Launches the creature 25–55 cells in a random direction, leaving a sparse fire trail. **5% chance** of explosion at landing (5×5 fire blast).
 - *Recipe: Gold Sand + Fire*
 
+### 🌬 Flaca
+- TTL 200. Flows.
+- **On creature contact:** Slows creature movement and reduces energy drain for 60 ticks.
+- *Recipe: Water + Ice*
+
+---
+
+## FRACTAL ELEMENTS
+
+### 🔺 SIERP *(Sierpinski Triangle)*
+- **Placement:** Single-dot seed placed anywhere on the grid.
+- **Growth:** Expands row-by-row using Rule-90 cellular automaton. Each new row = XOR of the two cells above it. Grows 38 rows from the seed point.
+- **Color:** Rainbow rows, each row gets a distinct hue that slowly rotates with time. Brightness pulses wave-like.
+- **TTL:** Cells decay after ~750–830 ticks. Growth is fixed; all cells placed on first stamp.
+- **Immovable** while alive.
+
+### ◈ JULIA *(Julia Set Fractal)*
+- **Placement:** Single-dot seed placed anywhere on the grid.
+- **Growth:** Expands ring-by-ring outward from the seed using escape-time iteration (c = −0.4 + 0.6i). Grows up to radius 250, filling a large portion of the world.
+- **Color:** Exterior cells (escaped) colored by escape-time bands — cycling hues with animated drift. Interior cells (non-escaping Julia set region) rendered as dark pulsing purple.
+- **TTL:** Cells decay after ~800–920 ticks. Growth continues until radius 250 or grid edge.
+- **Immovable** while alive.
+
 ---
 
 ## MACHINE & BACTERIA (GoL SYSTEMS)
@@ -377,8 +381,6 @@ These are liquid-like elements that flow and interact with creatures on contact.
 ### RNA Stamps *(HighLife preset patterns)*
 Pre-built HighLife patterns you can stamp directly:
 - **🔬 RNA Glider** — Small 5-cell pattern, travels diagonally across the grid.
-- **🧬 RNA Seed** — 6-cell diagonal ring, fires a replication sequence via the B6 rule.
-- **💉 RNA Bomb** — Extended seed with a blinker offset — creates a large self-replicating cascade.
 
 ---
 
@@ -409,7 +411,7 @@ Spark, smoke, steam, water drip, detritus, ash — minor environmental noise.
 Acid pool, oil slick, lava vein, ice block, salt scatter, Life Seed, Lucid, Crank. Rare: Chromadust shower (3–6 particles from above).
 
 **Tier 3 — Biological** *(fires at rate × 3.5%)*
-Random creature spawns: Ant (22%), Spider (16%), Mite (12%), Termite (12%), Fungi (10%), Plant (10%), Seed (6%), Spore (5%), Algae (5%), Egg (4%).
+Random creature spawns: Ant (22%), Spider (16%), Wasp (12%), Termite (12%), Fungi (10%), Plant (10%), Seed (6%), Spore (5%), Egg (4%).
 
 **Tier 4 — Cosmic** *(fires at rate × 1% — rare, high-impact)*
 
@@ -417,7 +419,7 @@ Random creature spawns: Ant (22%), Spider (16%), Mite (12%), Termite (12%), Fung
 |-------|--------|
 | ☄️ Meteorite | Lava core + 3-cell fire blast at a random location. |
 | ⚡ Lightning | 8–28 cell vertical fire column strikes from the top. |
-| 👑 Queen Spawn | A random queen type (Ant, Spider, Mite, Termite, Huntsman) appears. |
+| 👑 Queen Spawn | A random queen type (Ant, Spider, Wasp, Termite) appears. |
 | 🦠 Virus | 2–4 Machine cells materialize. |
 | 🧫 Bacteria | A 2×2 Bacteria block appears. |
 | 🪱 Worm | A 5-cell worm chain spawns and begins hunting. |
@@ -429,37 +431,34 @@ Random creature spawns: Ant (22%), Spider (16%), Mite (12%), Termite (12%), Fung
 
 ## VARIANT SYSTEM
 
-Most creatures can speciate into a **named variant** when mutation is active. Variants are inherited by offspring (80% chance) and provide distinct behavioral traits.
+Most creatures can speciate into a **named variant** when mutation is active. Variants are inherited by offspring (70% chance) and provide distinct behavioral traits.
 
 | Creature | Variant | Trait |
 |----------|---------|-------|
+| Ant | Tunnel-Master | Digs through clay 3× faster |
+| Ant | Forager | Eats plants twice as aggressively |
 | Ant | Tank Ant | Double HP, slower movement |
-| Ant | Forager | 2× plant eating speed |
-| Ant | Acid-Walker | Immune to acid damage |
-| Ant | Aquatic Ant | Survives in water |
-| Ant | Fire-Runner | Immune to fire and lava |
-| Ant | Jumper Ant | Short-range teleport 8%/tick |
-| Spider | Ambusher | Hunt radius capped at 2 cells |
-| Spider | Web-Master | 1.8× web laying rate |
-| Spider | Venomous | One-shot kill on any bite |
-| Spider | Acrobat | 60% move chance, half HP |
-| Spider | Pack-Hunter | 2× damage with adjacent spider |
-| Huntsman | Web-Spinner | 3× web laying rate |
-| Huntsman | Venomous | One-shot kill |
-| Huntsman | Acrobat | 45% move chance, half HP |
-| Huntsman | Pack-Hunter | 2× damage with adjacent huntsman |
-| Termite | Wood-Borer | 3× wood eating speed |
-| Termite | Mound-Builder | Leaves clay trail 12%/step |
+| Ant | Acid-Walker | Immune to acid — walks through acid pools |
+| Ant | Aquatic Ant | Survives in water without drowning |
+| Ant | Fire-Runner | Immune to fire and lava damage |
+| Ant | Jumper Ant | Teleports short distances erratically |
+| Spider | Ambusher | Only strikes when prey is within 2 cells — instant kill |
+| Spider | Web-Master | Produces web 3× faster, creating dense networks |
+| Spider | Venomous | Single bite kills any creature instantly |
+| Spider | Acrobat | Moves 3× faster but has half HP |
+| Spider | Pack-Hunter | Doubles damage when another spider is adjacent |
+| Termite | Wood-Borer | Consumes wood 3× faster |
+| Termite | Mound-Builder | Leaves clay trail behind when moving |
 | Termite | Soldier | Double HP, attacks spiders on contact |
 | Termite | Fungus-Farmer | Never eats fungi; fungi grow faster nearby |
-| Mite | Ice-Skater | 3× movement speed on Ice |
-| Mite | Acid-Mite | Leaves acid trail on movement |
-| Mite | Swarmer | 2× reproduction rate, half HP |
-| Fungi | Bioluminescent | Immune to light damage, glows in dark |
-| Fungi | Parasitic | Drains 1 HP/tick from all adjacent creatures |
-| Fungi | Explosive | Bursts 3–5 spores into dark cells on death |
+| Wasp | Sentinel | Attacks spiders within 2 cells on sight |
+| Wasp | Drone | 2× reproduction rate, half HP |
+| Wasp | Soldier | Double HP, attacks on contact |
+| Fungi | Bioluminescent | Glows in dark, immune to light damage |
+| Fungi | Parasitic | Drains HP from all adjacent creatures |
+| Fungi | Explosive | Bursts into spores on death |
 | Plant | Thorny | Damages creatures that eat it |
-| Plant | Rapid-Growth | 3× growth speed, spreads aggressively |
+| Plant | Rapid-Growth | Grows 3× faster, spreads aggressively |
 | Plant | Deep-Root | Grows downward into sand and clay |
 
 ---

@@ -43,13 +43,24 @@ export default function Toolbar() {
         <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'3px'}}>
           <span style={{fontSize:'8px',color:'var(--dim)',letterSpacing:'2px'}}>PROG CLOUD</span>
           <select id="pc-type" style={{flex:1,fontSize:'8px',padding:'2px 4px',background:'var(--btn-bg)',border:'1px solid var(--btn-border)',color:'var(--text)',borderRadius:'3px',fontFamily:'var(--mono)'}}>
-            <option value="water">Water</option><option value="acid">Acid</option>
-            <option value="sand">Sand</option><option value="lava">Lava</option>
-            <option value="ice">Ice</option><option value="salt">Salt</option>
-            <option value="smoke">Smoke</option><option value="steam">Steam</option>
-            <option value="ash">Ash</option><option value="detritus">Detritus</option>
-            <option value="gunpowder">Gunpowder</option><option value="fire">Fire</option>
-            <option value="oil">Oil</option><option value="gold_sand">Gold Sand</option>
+            <optgroup label="Terrain">
+              <option value="water">Water</option><option value="acid">Acid</option>
+              <option value="sand">Sand</option><option value="lava">Lava</option>
+              <option value="ice">Ice</option><option value="salt">Salt</option>
+              <option value="smoke">Smoke</option><option value="steam">Steam</option>
+              <option value="ash">Ash</option><option value="detritus">Detritus</option>
+              <option value="gunpowder">Gunpowder</option><option value="fire">Fire</option>
+              <option value="oil">Oil</option><option value="gold_sand">Gold Sand</option>
+              <option value="stone">Stone</option><option value="clay">Clay</option>
+              <option value="white_sand">White Sand</option>
+            </optgroup>
+            <optgroup label="Creatures">
+              <option value="ant">Ant</option><option value="queen">Queen Ant</option>
+              <option value="spider">Spider</option><option value="queen_spider">Queen Spider</option>
+              <option value="fungi">Fungi</option><option value="wasp">Wasp</option>
+              <option value="queen_wasp">Queen Wasp</option><option value="termite">Termite</option>
+              <option value="queen_termite">Queen Termite</option><option value="plant">Plant</option>
+            </optgroup>
           </select>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
@@ -64,15 +75,28 @@ export default function Toolbar() {
         <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'3px'}}>
           <span style={{fontSize:'8px',color:'var(--dim)',letterSpacing:'2px'}}>PROG VOID</span>
           <select id="pv-type" style={{flex:1,fontSize:'8px',padding:'2px 4px',background:'var(--btn-bg)',border:'1px solid var(--btn-border)',color:'var(--text)',borderRadius:'3px',fontFamily:'var(--mono)'}}>
-            <option value="water">Water</option><option value="acid">Acid</option>
-            <option value="sand">Sand</option><option value="lava">Lava</option>
-            <option value="ice">Ice</option><option value="salt">Salt</option>
-            <option value="smoke">Smoke</option><option value="steam">Steam</option>
-            <option value="ash">Ash</option><option value="detritus">Detritus</option>
-            <option value="gunpowder">Gunpowder</option><option value="fire">Fire</option>
-            <option value="oil">Oil</option><option value="gold_sand">Gold Sand</option>
-            <option value="cloud">Cloud</option><option value="bloom_cloud">Bloom Cloud</option>
-            <option value="sand_all">All Sand</option><option value="agents">All Agents</option>
+            <optgroup label="Terrain">
+              <option value="water">Water</option><option value="acid">Acid</option>
+              <option value="sand">Sand</option><option value="lava">Lava</option>
+              <option value="ice">Ice</option><option value="salt">Salt</option>
+              <option value="smoke">Smoke</option><option value="steam">Steam</option>
+              <option value="ash">Ash</option><option value="detritus">Detritus</option>
+              <option value="gunpowder">Gunpowder</option><option value="fire">Fire</option>
+              <option value="oil">Oil</option><option value="gold_sand">Gold Sand</option>
+              <option value="stone">Stone</option><option value="clay">Clay</option>
+              <option value="white_sand">White Sand</option>
+              <option value="cloud">Cloud</option><option value="bloom_cloud">Bloom Cloud</option>
+            </optgroup>
+            <optgroup label="Creatures">
+              <option value="ant">Ant</option><option value="queen">Queen Ant</option>
+              <option value="spider">Spider</option><option value="queen_spider">Queen Spider</option>
+              <option value="fungi">Fungi</option><option value="wasp">Wasp</option>
+              <option value="queen_wasp">Queen Wasp</option><option value="termite">Termite</option>
+              <option value="queen_termite">Queen Termite</option><option value="plant">Plant</option>
+            </optgroup>
+            <optgroup label="Special">
+              <option value="sand_all">All Sand</option><option value="agents">All Agents</option>
+            </optgroup>
           </select>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:'8px'}}>

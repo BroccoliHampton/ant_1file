@@ -13,7 +13,12 @@ export default function MenuDrawer() {
   const entropyRate   = useSimStore(s => s.entropyRate)
   const setEntropyRate = useSimStore(s => s.setEntropyRate)
 
-  const close = () => setOpen(false)
+  const close = () => {
+    setOpen(false)
+    // Reset any scroll that accumulated while the drawer was open
+    const appEl = document.getElementById('app')
+    if (appEl) appEl.scrollTop = 0
+  }
 
   return (
     <>

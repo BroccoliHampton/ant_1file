@@ -12,13 +12,13 @@ export const T = {
   WATER:5, OIL:6, DETRITUS:7, FIRE:8, MUTAGEN:9,
   CLAY:10, CLAY_HARD:11,
   // Kingdom agents
-  PLANT:20, ANT:21, QUEEN:22, SPIDER:23, FUNGI:24, MITE:25,
+  PLANT:20, ANT:21, QUEEN:22, SPIDER:23, FUNGI:24, WASP:25,
   // Derived states
   PLANT_WALL:26, WEB:27, SPORE:28, EGG:29,
   // Reproductive types
   SEED:30,
   QUEEN_SPIDER:31,
-  QUEEN_MITE:32,
+  QUEEN_WASP:32,
   FROGSTONE:33,
   // Classic sand elements
   LAVA:40, STONE:41, STEAM:42, ICE:43, SMOKE:44,
@@ -34,48 +34,53 @@ export const T = {
   // Additional creatures from phone version
   TERMITE:60,
   QUEEN_TERMITE:61,
-  HUNTSMAN:62,
-  QUEEN_HUNTSMAN:63,
   // Conway's Game of Life machines
   MACHINE:70,
   MACHINE_DEAD:71,
   // HighLife bacteria (2×2 pixel scale)
   BACTERIA:74,
   BACTERIA_DEAD:75,
+  // Wireworld (Quark) — 3-state wire automaton
+  QUARK_CONDUCTOR:80, // yellow wire
+  QUARK_HEAD:81,      // blue electron head
+  QUARK_TAIL:82,      // red electron tail
+  // Visual fractal elements (placed as single stamps, decay via TTL)
+  FRACTAL:84,         // Sierpinski rule-90 triangle, rainbow rows
+  JULIA:85,           // Julia set escape-time colouring, pulsing palette
   // Custom lab creatures start here
   CUSTOM_BASE:100,
 };
 
 export const KINGDOM_HUE = {
   [T.PLANT]:130, [T.ANT]:100, [T.QUEEN]:35,
-  [T.SPIDER]:0, [T.FUNGI]:280, [T.MITE]:40,
-  [T.QUEEN_SPIDER]:285, [T.QUEEN_MITE]:50,
-  [T.HUNTSMAN]:22, [T.QUEEN_HUNTSMAN]:38,
+  [T.SPIDER]:0, [T.FUNGI]:280, [T.WASP]:40,
+  [T.QUEEN_SPIDER]:285, [T.QUEEN_WASP]:50,
 };
 
 export const K_NAMES = {
   [T.PLANT]:'PLANT', [T.ANT]:'ANT', [T.QUEEN]:'QUEEN',
-  [T.SPIDER]:'SPIDER', [T.FUNGI]:'FUNGI', [T.MITE]:'MITE',
-  [T.QUEEN_SPIDER]:'Q.SPIDER', [T.QUEEN_MITE]:'Q.MITE',
-  [T.HUNTSMAN]:'HUNTSMAN', [T.QUEEN_HUNTSMAN]:'Q.HUNTSMAN',
+  [T.SPIDER]:'SPIDER', [T.FUNGI]:'FUNGI', [T.WASP]:'WASP',
+  [T.QUEEN_SPIDER]:'Q.SPIDER', [T.QUEEN_WASP]:'Q.WASP',
 };
 
 export const K_COLORS = {
   [T.PLANT]:'#1a6b1a', [T.ANT]:'#39ff14', [T.QUEEN]:'#ff8800',
-  [T.SPIDER]:'#505058', [T.FUNGI]:'#8c32c8', [T.MITE]:'#ff8c00',
-  [T.QUEEN_SPIDER]:'#cc44ff', [T.QUEEN_MITE]:'#ffdd44',
-  [T.HUNTSMAN]:'#c86020', [T.QUEEN_HUNTSMAN]:'#e89000',
+  [T.SPIDER]:'#505058', [T.FUNGI]:'#8c32c8', [T.WASP]:'#f5c000',
+  [T.QUEEN_SPIDER]:'#cc44ff', [T.QUEEN_WASP]:'#ffe566',
   [T.TERMITE]:'#c87820', [T.QUEEN_TERMITE]:'#f0a030',
 };
 
 export const GENOME_DEFAULTS = {
-  [T.PLANT]:   [[80,140],[10,40], [60,100],[0,30],  [100,180],[80,150]],
-  [T.ANT]:     [[60,100],[120,200],[100,180],[80,150],[80,140],[100,180]],
-  [T.QUEEN]:   [[100,160],[20,60],[80,140],[40,80],  [140,220],[180,255]],
-  [T.SPIDER]:  [[80,140],[100,180],[80,160],[160,230],[120,200],[40,100]],
-  [T.HUNTSMAN]:[[80,140],[100,180],[80,160],[160,230],[120,200],[40,100]],
-  [T.FUNGI]:   [[40,80], [10,40], [100,180],[20,60], [80,160],[120,200]],
-  [T.MITE]:    [[40,80], [160,230],[120,200],[60,120],[60,120],[140,220]],
+  [T.PLANT]:          [[80,140],[10,40], [60,100],[0,30],  [100,180],[80,150]],
+  [T.ANT]:            [[60,100],[120,200],[100,180],[80,150],[80,140],[100,180]],
+  [T.QUEEN]:          [[100,160],[20,60],[80,140],[40,80],  [140,220],[180,255]],
+  [T.SPIDER]:         [[80,140],[100,180],[80,160],[160,230],[120,200],[40,100]],
+  [T.QUEEN_SPIDER]:   [[100,160],[80,160],[100,180],[180,255],[140,220],[120,200]],
+  [T.FUNGI]:          [[40,80], [10,40], [100,180],[20,60], [80,160],[120,200]],
+  [T.WASP]:           [[40,80], [160,230],[120,200],[60,120],[60,120],[140,220]],
+  [T.QUEEN_WASP]:     [[60,100],[140,210],[140,210],[80,140],[100,180],[160,230]],
+  [T.TERMITE]:        [[60,100],[100,180],[140,210],[40,100],[80,150],[80,160]],
+  [T.QUEEN_TERMITE]:  [[100,160],[80,150],[160,230],[40,80], [120,200],[160,230]],
 };
 
 export const ELEMENTS = [
@@ -107,23 +112,22 @@ export const ELEMENTS = [
   {cat:'life', key:'queenSpider', label:'QUEEN SPIDER', col:'#cc44ff', tag:'🕸👑'},
   {cat:'life', key:'termite',     label:'TERMITE',      col:'#c87820', tag:'🪲'},
   {cat:'life', key:'queenTermite',label:'Q.TERMITE',    col:'#f0a030', tag:'🪲👑'},
-  {cat:'life', key:'huntsman',      label:'HUNTSMAN',       col:'#c86020', tag:'🕷'},
-  {cat:'life', key:'queenHuntsman', label:'Q.HUNTSMAN',     col:'#e89000', tag:'🕸👑'},
-  {cat:'life', key:'mite',        label:'MITE',         col:'#ff8c00', tag:'🪲'},
-  {cat:'life', key:'queenMite',   label:'QUEEN MITE',   col:'#ffdd44', tag:'🪲👑'},
+  {cat:'life', key:'wasp',        label:'WASP',         col:'#f5c000', tag:'🐝'},
+  {cat:'life', key:'queenWasp',   label:'Q.WASP',       col:'#ffe566', tag:'🐝👑'},
   {cat:'life', key:'plant',       label:'PLANT',        col:'#1a6b1a', tag:'🌿'},
   {cat:'life', key:'seed',        label:'PLANT SEED',   col:'#4aaa22', tag:'🌱'},
-  {cat:'life', key:'algae',       label:'ALGAE',        col:'#2a9a2a', tag:'🌊'},
   {cat:'life', key:'detritus',    label:'DETRITUS',     col:'#806545', tag:'🍂'},
   {cat:'life', key:'fungi',       label:'FUNGI',        col:'#8c32c8', tag:'🍄'},
   {cat:'life', key:'spore',       label:'SPORE',        col:'#a050dc', tag:'✦'},
   // virus (conway's game of life) + bacteria (highlife)
   {cat:'special', key:'machine',    label:'VIRUS',       col:'#00e5ff', tag:'🦠'},
   {cat:'special', key:'bacteria',   label:'BACTERIA',    col:'#44ff88', tag:'🧫'},
+  {cat:'special', key:'quark',      label:'QUARK',       col:'#ff9900', tag:'⚡'},
   // RNA preset stamps (HighLife patterns)
   {cat:'special', key:'rna1',       label:'RNA GLIDER',  col:'#66ffaa', tag:'🔬'},
-  {cat:'special', key:'rna2',       label:'RNA SEED',    col:'#44ffcc', tag:'🧬'},
-  {cat:'special', key:'rna3',       label:'RNA BOMB',    col:'#99ffee', tag:'💉'},
+  // Visual fractal stamps
+  {cat:'special', key:'fractal1',   label:'SIERP',       col:'#dd44ff', tag:'🔺'},
+  {cat:'special', key:'fractal2',   label:'JULIA',       col:'#00ccff', tag:'◈'},
   // special
   {cat:'special', key:'mutagen',    label:'LIFE SEED',   col:'#cc00ee', tag:'⚛'},
   {cat:'special', key:'chromadust', label:'CHROMADUST',  col:'#cc88ff', tag:'✨'},
