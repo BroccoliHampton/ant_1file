@@ -46,7 +46,7 @@ export const T = {
   QUARK_TAIL:82,      // red electron tail
   // Visual fractal elements (placed as single stamps, decay via TTL)
   FRACTAL:84,         // Sierpinski rule-90 triangle, rainbow rows
-  JULIA:85,           // Julia set escape-time colouring, pulsing palette
+  JULIA:85,           // Cyclic Cellular Automaton (CCA) — spiraling color patterns
   // Custom lab creatures start here
   CUSTOM_BASE:100,
 };
@@ -127,7 +127,7 @@ export const ELEMENTS = [
   {cat:'special', key:'rna1',       label:'RNA GLIDER',  col:'#66ffaa', tag:'🔬'},
   // Visual fractal stamps
   {cat:'special', key:'fractal1',   label:'SIERP',       col:'#dd44ff', tag:'🔺'},
-  {cat:'special', key:'fractal2',   label:'JULIA',       col:'#00ccff', tag:'◈'},
+  {cat:'special', key:'fractal2',   label:'CCA',         col:'#00ccff', tag:'🌀'},
   // special
   {cat:'special', key:'mutagen',    label:'LIFE SEED',   col:'#cc00ee', tag:'⚛'},
   {cat:'special', key:'chromadust', label:'CHROMADUST',  col:'#cc88ff', tag:'✨'},

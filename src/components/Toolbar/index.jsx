@@ -61,6 +61,16 @@ export default function Toolbar() {
               <option value="queen_wasp">Queen Wasp</option><option value="termite">Termite</option>
               <option value="queen_termite">Queen Termite</option><option value="plant">Plant</option>
             </optgroup>
+            <optgroup label="Special">
+              <option value="mutagen">Life Seed</option><option value="chromadust">Chromadust</option>
+              <option value="cloud">Cloud</option><option value="bloom_cloud">Bloom Cloud</option>
+              <option value="machine">Virus</option><option value="bacteria">Bacteria</option>
+              <option value="quark">Quark</option>
+            </optgroup>
+            <optgroup label="Rx">
+              <option value="lucid">Lucid</option><option value="crank">Crank</option>
+              <option value="flaca">Flaca</option>
+            </optgroup>
           </select>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
@@ -85,7 +95,6 @@ export default function Toolbar() {
               <option value="oil">Oil</option><option value="gold_sand">Gold Sand</option>
               <option value="stone">Stone</option><option value="clay">Clay</option>
               <option value="white_sand">White Sand</option>
-              <option value="cloud">Cloud</option><option value="bloom_cloud">Bloom Cloud</option>
             </optgroup>
             <optgroup label="Creatures">
               <option value="ant">Ant</option><option value="queen">Queen Ant</option>
@@ -93,8 +102,21 @@ export default function Toolbar() {
               <option value="fungi">Fungi</option><option value="wasp">Wasp</option>
               <option value="queen_wasp">Queen Wasp</option><option value="termite">Termite</option>
               <option value="queen_termite">Queen Termite</option><option value="plant">Plant</option>
+              <option value="seed">Seed</option><option value="egg">Egg</option>
+              <option value="spore">Spore</option><option value="web">Web</option>
             </optgroup>
             <optgroup label="Special">
+              <option value="cloud">Cloud</option><option value="bloom_cloud">Bloom Cloud</option>
+              <option value="mutagen">Life Seed</option><option value="chromadust">Chromadust</option>
+              <option value="machine">Virus</option><option value="bacteria">Bacteria</option>
+              <option value="quark">Quark</option><option value="fractal">Sierp</option>
+              <option value="julia">CCA</option>
+            </optgroup>
+            <optgroup label="Rx">
+              <option value="lucid">Lucid</option><option value="crank">Crank</option>
+              <option value="flaca">Flaca</option>
+            </optgroup>
+            <optgroup label="Groups">
               <option value="sand_all">All Sand</option><option value="agents">All Agents</option>
             </optgroup>
           </select>

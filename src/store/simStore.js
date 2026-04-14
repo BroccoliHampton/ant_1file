@@ -59,6 +59,27 @@ export const useSimStore = create((set, get) => ({
     get().engine?.setEntropyRate(r)
   },
 
+  // Entropy filter — which events are enabled. Stored as a Set of keys.
+  entropyFilter: new Set(),
+  entropyFilterInit: false,
+  initEntropyFilter: () => {
+    const eng = get().engine
+    if (!eng || get().entropyFilterInit) return
+    set({ entropyFilter: new Set(eng.getEntropyFilter()), entropyFilterInit: true })
+  },
+  toggleEntropyKey: (key) => {
+    const cur = get().entropyFilter
+    const next = new Set(cur)
+    if (next.has(key)) next.delete(key); else next.add(key)
+    set({ entropyFilter: next })
+    get().engine?.setEntropyFilterKey(key, next.has(key))
+  },
+  setAllEntropyKeys: (enabled) => {
+    const eng = get().engine
+    eng?.setEntropyFilterAll(enabled)
+    set({ entropyFilter: new Set(eng?.getEntropyFilter() || []) })
+  },
+
   // Brush & speed — synced to engine
   brushSize: 3,
   speedMult: 1,

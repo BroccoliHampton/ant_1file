@@ -38,7 +38,7 @@ Every living creature carries a 6-gene genome (each gene 0–255). Genes drift o
 ### 🐜 ANT
 **Color:** Neon green · **Cap:** 300 workers, 100 queens
 
-- **Eats:** Fungi (+30 energy), Wasps (+15), Detritus/Ash (+8). Needs to eat to sustain energy.
+- **Eats:** Plants (+40 energy, consumed when moving onto plant cells — interior cells have high eat chance, edge nibble is 2%). Fungi (+30, 25%×appetite chance when adjacent). Wasps (+15). Detritus/Ash (+8). Plants are the primary energy source; eating a plant also triggers queen promotion check.
 - **Movement:** Follows pheromone trails through open space and clay. Tunnels through **Clay Hard** (soft clay becomes tunnel walls). Climbs plants (15+ energy required).
 - **Combat:** High-aggression ants retaliate against adjacent spiders using nearby Salt, Ash, or Gunpowder as weapons (12–50 HP splash damage).
 - **Death:** Energy ≤ 0, HP ≤ 0, drowning (water drains HP), fire, acid.

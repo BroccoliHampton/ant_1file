@@ -110,7 +110,7 @@ const T = {
   QUARK_TAIL:82,      // red electron tail
   // Visual fractal elements — must match constants.js
   FRACTAL:84,         // Sierpinski rule-90 triangle
-  JULIA:85,           // Julia set escape-time colouring
+  JULIA:85,           // Cyclic Cellular Automaton (CCA)
   CUSTOM_BASE:100, // custom lab creatures start at 100+
 };
 
@@ -315,6 +315,22 @@ const strainRegistry=new Map(); // strainId -> {type,genome,color,pop,born,peak}
 let nextStrain=1;
 let mutRate=0; // starts off — user controls via slider
 let entropyRate=0; // chaos event frequency — 0 (off) to 1 (max)
+// Entropy filter — keys are strings identifying each possible event; a key
+// in the set means the event is ENABLED. Default: all enabled.
+const ENTROPY_KEYS=[
+  // Elements (Tier 1 atmospheric + Tier 2 chemical)
+  'fire','smoke','steam','water','detritus','ash',
+  'acid','oil','lava','ice','salt',
+  // Special (Tier 2 + Tier 4)
+  'mutagen','chromadust','virus','bacteria','worm','gunpowder_chain','meteor','lightning','flood',
+  // Creatures (Tier 3)
+  'ant','spider','wasp','termite','fungi','plant','seed','spore','egg',
+  // Rx
+  'lucid','crank','flaca',
+  // Custom-creature cosmic event + queen spawn
+  'custom_creature','queen_spawn',
+];
+let entropyFilter=new Set(ENTROPY_KEYS);
 
 function registerStrain(type,genome,parentId=null){
   const id=nextStrain++;
@@ -387,9 +403,10 @@ const QUARK_TICK_RATE=8; // sim ticks per Wireworld generation — controls elec
 //  FRACTAL VISUAL CONSTANTS
 // ================================================================
 const SIERP_ROWS=38;          // rows of Sierpinski triangle stamped per click
-const MAX_JULIA_ITER=32;      // max iterations for Julia escape-time
-const JULIA_SCALE=0.055;      // grid cells → Julia-space scale (controls zoom)
-const JULIA_CR=-0.4, JULIA_CI=0.6; // Julia set parameter c = −0.4 + 0.6i
+const CCA_NUM_COLORS=16;      // colors in the cyclic automaton (0..15)
+const CCA_SEED_RADIUS=12;     // radius of initial random-color circle
+const CCA_MAX_AGE=2500;       // growth ticks before fade phase begins
+const CCA_FADE_TTL=200;       // per-cell TTL during fade phase
 const FRACTAL_GROW_RATE=4;    // sim ticks between each growth step
 // Active fractal growth states — each entry drives a growing fractal seed
 let fractalGrowthStates=[];
@@ -418,7 +435,12 @@ function set(x,y,v){
   grid[idx(x,y)]=v;
 }
 
-function erase(x,y){ if(inB(x,y)) grid[idx(x,y)]=null; }
+function erase(x,y){
+  if(!inB(x,y))return;
+  const p=grid[idx(x,y)];
+  if(p?.g)popDecr(p);
+  grid[idx(x,y)]=null;
+}
 
 function swap(x1,y1,x2,y2){
   const a=grid[idx(x1,y1)],b=grid[idx(x2,y2)];
@@ -584,11 +606,34 @@ function envDamage(x,y,p){
     // Ants can "stand on" a plant cell by carrying it as an underlay (p.under).
     // If the ant dies while on a plant, restore the plant.
     if(p.t===T.ANT&&p.under?.t===T.PLANT){set(x,y,p.under);p.under=null;}
-    else set(x,y,null);
+    else {
+      // Fire/lava-killed creatures leave ash; other env deaths leave detritus 50% of the time
+      const byFire=hp<0&&nearType(x,y,T.FIRE,T.LAVA);
+      if(byFire)set(x,y,{t:T.ASH,age:0});
+      else set(x,y,Math.random()<0.5?abiotic(T.DETRITUS):null);
+    }
     popDecr(p);
     return true;
   }
   return false;
+}
+
+// Universal creature corpse drop — call instead of set(x,y,null) for creature deaths.
+// Drops detritus 50% of the time; caller can pass byFire=true to drop ash instead.
+function creatureCorpse(x,y,byFire=false){
+  if(byFire){set(x,y,{t:T.ASH,age:0});return;}
+  set(x,y,Math.random()<0.5?abiotic(T.DETRITUS):null);
+}
+// Queen corpse — higher biomass, drops detritus at origin + 1-2 neighbors
+function queenCorpse(x,y,byFire=false){
+  if(byFire){set(x,y,{t:T.ASH,age:0});return;}
+  set(x,y,abiotic(T.DETRITUS));
+  const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
+  const drops=1+Math.floor(Math.random()*2);
+  for(let i=0;i<drops&&i<nbrs.length;i++){
+    const[nx,ny]=nbrs[i];
+    grid[idx(nx,ny)]=abiotic(T.DETRITUS);
+  }
 }
 
 // ================================================================
@@ -627,11 +672,11 @@ function stepPlant(x,y,p){
     const ox=x-gv.x,oy=y-gv.y;
     if(inB(ox,oy)&&!get(ox,oy)) grid[idx(ox,oy)]={t:T.OXYGEN,age:0,ttl:80+Math.floor(Math.random()*80)};
   }
-  if(p.hp<=0){set(x,y,null);popDecr(p);return;}
+  if(p.hp<=0){creatureCorpse(x,y);popDecr(p);return;}
   const nbrs=getNeighbors(x,y);
   for(const[nx,ny] of nbrs){
     const np=get(nx,ny);if(!np)continue;
-    if(np.t===T.ACID||np.t===T.LAVA){p.hp-=40;if(p.hp<=0){set(x,y,null);popDecr(p);return;}}
+    if(np.t===T.ACID||np.t===T.LAVA){p.hp-=40;if(p.hp<=0){creatureCorpse(x,y,true);popDecr(p);return;}}
     if(np.t===T.SALT)p.energy=Math.max(0,p.energy-1);
     if(np.t===T.ASH)p.energy=Math.min(255,p.energy+0.5);
     if(np.t===T.WASP&&Math.random()<0.12){set(nx,ny,null);popDecr(np);}
@@ -791,6 +836,8 @@ function stepAnt(x,y,p){
   // EATING
   for(const[nx,ny] of nbrs){
     const np=get(nx,ny);if(!np)continue;
+    if((np.t===T.PLANT||np.t===T.PLANT_WALL)&&Math.random()<appetite*0.35){p.energy+=35;popDecr(np);grid[idx(nx,ny)]=null;break;}
+    if(np.t===T.SEED&&Math.random()<appetite*0.5){p.energy+=20;grid[idx(nx,ny)]=null;break;}
     if(np.t===T.FUNGI&&Math.random()<appetite*0.25){p.energy+=30;popDecr(np);grid[idx(nx,ny)]=null;break;}
     if(np.t===T.WASP&&Math.random()<appetite*0.5){p.energy+=15;grid[idx(nx,ny)]=null;break;}
     if((np.t===T.DETRITUS||np.t===T.ASH)&&Math.random()<appetite*0.15){p.energy+=8;grid[idx(nx,ny)]=null;break;}
@@ -888,7 +935,7 @@ function stepTermite(x,y,p){
   if(p.buff?.type==='chromadust'&&Math.random()<0.3){const jx=x+Math.floor((Math.random()-0.5)*6),jy=y+Math.floor((Math.random()-0.5)*6);if(inB(jx,jy)&&!get(jx,jy)){swap(x,y,jx,jy);return;}}
   const tvt=p.variant?.traits||[];
   const speed=p.g[1]/255,appetite=p.g[2]/255,aggression=p.g[3]/255;
-  const woodConsumeChance=tvt.includes('fast_eat_wood')?0.20:0.10;
+  const woodConsumeChance=tvt.includes('fast_eat_wood')?0.35:0.18;
   if(p.qcd>0)p.qcd--;
   // Drop a termite queen near (atX,atY) — called on wood eat and spontaneously
   function tryDropQueenTermite(atX,atY){
@@ -940,15 +987,15 @@ function stepTermite(x,y,p){
   // EATING — termites gnaw adjacent wood directly (main energy source) + other food
   for(const[nx,ny] of nbrs){
     const np=get(nx,ny);if(!np)continue;
-    // Wood: primary food source — gnaw from adjacent cells each tick
-    if(np.t===T.WOOD&&Math.random()<appetite*0.18){
-      p.energy+=30;
-      // Small chance to fully consume the wood cell (leave space)
-      if(Math.random()<0.05){grid[idx(nx,ny)]=null;}
+    // Wood: primary food source — gnaw and destroy adjacent wood (like ants eat plants)
+    if(np.t===T.WOOD&&Math.random()<appetite*0.35){
+      p.energy+=35;
+      grid[idx(nx,ny)]=null; // always consume the cell
       tryDropQueenTermite(nx,ny);
       break;
     }
-    // Termites traverse plant but do NOT eat it
+    // Termites traverse plant but do NOT eat it; seeds are fair game
+    if(np.t===T.SEED&&Math.random()<appetite*0.5){p.energy+=20;grid[idx(nx,ny)]=null;break;}
     if(np.t===T.FUNGI&&!tvt.includes('fungus_friend')&&Math.random()<appetite*0.25){p.energy+=30;popDecr(np);grid[idx(nx,ny)]=null;break;}
     if(np.t===T.WASP&&Math.random()<appetite*0.5){p.energy+=15;grid[idx(nx,ny)]=null;break;}
     if((np.t===T.DETRITUS||np.t===T.ASH)&&Math.random()<appetite*0.15){p.energy+=8;grid[idx(nx,ny)]=null;break;}
@@ -990,17 +1037,16 @@ function stepTermite(x,y,p){
       }
     }
     if(moveCandidates.length){
-      moveCandidates.sort((a,b)=>b[2]-a[2]);
+      moveCandidates.sort((a,b)=>b[2]-a[2]||(Math.random()-0.5));
       const best=moveCandidates[0][2];
-      const bestCells=moveCandidates.filter(c=>c[2]===best);
-      const[mx,my]=bestCells[Math.floor(Math.random()*bestCells.length)];
+      const[mx,my]=moveCandidates[0];
       if(best<=1&&digCandidates.length){/*fall through*/}
       else{
         const dest=get(mx,my);
         if(dest?.t===T.WOOD){
           // Traverse or consume wood
           if(Math.random()<woodConsumeChance){
-            p.energy+=20;moveTermiteTo(mx,my,{consumeWood:true});
+            p.energy+=35;moveTermiteTo(mx,my,{consumeWood:true});
             tryDropQueenTermite(mx,my);
           } else{moveTermiteTo(mx,my,{consumeWood:false});tryDropQueenTermite(mx,my);}
         } else if(dest?.t===T.PLANT||dest?.t===T.PLANT_WALL){
@@ -1036,14 +1082,13 @@ function stepTermite(x,y,p){
 function stepQueenTermite(x,y,p){
   p.age++;
   processBuff(p);
-  // Queen termites absorb energy from surrounding wood — must be near wood or fed by workers
-  const qnbrs=getNeighbors(x,y);
-  let woodBonus=0;
-  for(const[nx,ny] of qnbrs){if(get(nx,ny)?.t===T.WOOD)woodBonus+=0.25;}
-  p.energy=Math.min(255,p.energy+woodBonus);
-  p.energy-=0.14; // starves without wood adjacency or worker feeding
+  // Queen termites feed from sunlight + worker tithe (like ant queens) — no longer tied to wood adjacency
+  const lv=lightGrid[idx(x,y)];
+  p.energy=Math.min(255,p.energy+lv*0.3+0.1);
+  p.energy-=0.15; // slow drain — starves without worker feeding
   if(p.energy<=0){p.hp-=2;}
-  if(p.hp<=0){set(x,y,null);popDecr(p);return;}
+  if(p.hp<=0){queenCorpse(x,y);popDecr(p);return;}
+  const qnbrs=getNeighbors(x,y);
   if(envDamage(x,y,p))return;
 
   // Spawn workers — into empty OR wood cells (termites burrow directly through wood)
@@ -1077,7 +1122,7 @@ function stepQueen(x,y,p){
   p.energy=Math.min(255,p.energy+lv*0.3+0.1);
   p.energy-=0.15; // slow drain — starves without ant feeding
   if(p.energy<=0){p.hp-=2;} // starvation damages hp
-  if(p.hp<=0){set(x,y,null);popDecr(p);return;}
+  if(p.hp<=0){queenCorpse(x,y);popDecr(p);return;}
   if(envDamage(x,y,p))return;
   const spawnRate=20+Math.floor((1-p.g[5]/255)*80);
   if(p.age%spawnRate===0&&POP[T.ANT]<POP_MAX[T.ANT]){
@@ -1122,7 +1167,8 @@ function stepSpider(x,y,p){
     grid[originI]=(p.under?.t===T.WOOD)?p.under:null;
     p.under=null;
     if(dest?.t===T.WOOD){p.under=dest;}
-    else if(dest?.t===T.WEB||dest?.t===T.DETRITUS){/* consume, don't store */}
+    else if(dest?.t===T.DETRITUS){p.energy=Math.min(255,p.energy+12);}
+    else if(dest?.t===T.WEB){/* consume, don't store */}
     grid[destI]=p; x=nx; y=ny;
   }
 
@@ -1137,7 +1183,7 @@ function stepSpider(x,y,p){
     if(inB(bx,by)&&!get(bx,by)){moveSpiderTo(bx,by);return;}
     // Stuck on non-surface ground (sand, clay…) — bleed out
     p.hp-=6;
-    if(p.hp<=0){set(x,y,null);popDecr(p);return;}
+    if(p.hp<=0){creatureCorpse(x,y);popDecr(p);return;}
   }
   const nbrs=getNeighbors(x,y);
 
@@ -1184,7 +1230,7 @@ function stepSpider(x,y,p){
       if(svt.includes('venom'))np.hp=0;else np.hp-=dmg;
       p.energy+=25;
       if(np.hp<=0){
-        grid[idx(nx,ny)]=null;if(np.t===T.ANT||np.t===T.TERMITE||np.t===T.WASP)popDecr(np);
+        if(Math.random()<0.4)grid[idx(nx,ny)]=abiotic(T.DETRITUS);else grid[idx(nx,ny)]=null;if(np.t===T.ANT||np.t===T.TERMITE||np.t===T.WASP)popDecr(np);
         p.energy+=10;
         if(p.energy>=110&&Math.random()<0.06&&POP[T.QUEEN_SPIDER]<POP_MAX[T.QUEEN_SPIDER]){
           let qNear2=false;
@@ -1220,17 +1266,12 @@ function stepSpider(x,y,p){
         }
         return null;
       }).filter(Boolean);
-      scored.sort((a,b)=>b[2]-a[2]);
+      scored.sort((a,b)=>b[2]-a[2]||(Math.random()-0.5));
       const best=scored[0];
       if(best&&best[2]>0)moveSpiderTo(best[0],best[1]);
     }
   }
   for(const[nx,ny] of nbrs){if(get(nx,ny)?.t===T.FUNGI&&Math.random()<0.06){p.hp-=5;break;}}
-  // Eat nearby detritus for supplemental energy (scavenging)
-  for(const[nx,ny] of nbrs){
-    const np=get(nx,ny);
-    if(np?.t===T.DETRITUS&&Math.random()<0.3){p.energy+=12;grid[idx(nx,ny)]=null;break;}
-  }
   if(p.energy>=110&&POP[T.QUEEN_SPIDER]<POP_MAX[T.QUEEN_SPIDER]){
     let qNear=false;for(let dy=-8;dy<=8&&!qNear;dy++)for(let dx=-8;dx<=8&&!qNear;dx++){if(get(x+dx,y+dy)?.t===T.QUEEN_SPIDER)qNear=true;}
     if(!qNear&&Math.random()<0.02){
@@ -1256,13 +1297,13 @@ function stepFungi(x,y,p){
   processBuff(p);
   const fvt=p.variant?.traits||[];
   const lv=lightGrid[idx(x,y)],lightSens=p.g[3]/255,spreadSpeed=p.g[1]/255,resilience=p.g[4]/255;
-  if(lv>0.6&&!fvt.includes('biolum')){p.hp-=lv*4*lightSens*(1-resilience*0.4);if(p.hp<=0){set(x,y,null);popDecr(p);return;}}
+  if(lv>0.6&&!fvt.includes('biolum')){p.hp-=lv*4*lightSens*(1-resilience*0.4);if(p.hp<=0){creatureCorpse(x,y);popDecr(p);return;}}
   const nbrs=getNeighbors(x,y);
   let moistureBoost=0;
   for(const[nx,ny] of nbrs){
     const np=get(nx,ny);if(!np)continue;
-    if(np.t===T.SALT){p.hp-=40;if(p.hp<=0){set(x,y,null);popDecr(p);return;}}
-    if(np.t===T.LAVA||np.t===T.ACID){p.hp-=50;if(p.hp<=0){set(x,y,null);popDecr(p);return;}}
+    if(np.t===T.SALT){p.hp-=40;if(p.hp<=0){creatureCorpse(x,y);popDecr(p);return;}}
+    if(np.t===T.LAVA||np.t===T.ACID){p.hp-=50;if(p.hp<=0){creatureCorpse(x,y,np.t===T.LAVA);popDecr(p);return;}}
     if(np.t===T.WOOD&&Math.random()<spreadSpeed*0.008){grid[idx(nx,ny)]=abiotic(T.DETRITUS);p.energy=Math.min(255,p.energy+15);}
     if((np.t===T.SPIDER)&&Math.random()<p.g[2]/255*0.08){
       const drain=8+Math.floor(p.g[2]/255*12);np.energy=Math.max(0,np.energy-drain);np.hp-=3;p.energy+=drain*0.7;
@@ -1303,13 +1344,13 @@ function stepFungi(x,y,p){
         set(nx,ny,agentWithStrain(T.FUNGI,ng,p.sid,{energy:60}));popIncr({t:T.FUNGI,sid:p.sid});
       }
     }
-    set(x,y,null);popDecr(p);return;
+    creatureCorpse(x,y);popDecr(p);return;
   }
   // Network sharing
   for(const[nx,ny] of nbrs){const np=get(nx,ny);if(np?.t===T.FUNGI&&np.energy<p.energy-20){const share=Math.min(5,(p.energy-np.energy)*0.3);p.energy-=share;np.energy+=share;}}
   const spreadChance=spreadSpeed*0.02+moistureBoost;
   if(Math.random()<spreadChance&&POP[T.FUNGI]<POP_MAX[T.FUNGI]){
-    const targets=nbrs.filter(([nx,ny])=>{const np=get(nx,ny);if(!np)return lightGrid[idx(nx,ny)]<0.35;return np.t===T.STONE&&Math.random()<0.3;});
+    const targets=nbrs.filter(([nx,ny])=>{const np=get(nx,ny);if(!np)return lightGrid[idx(nx,ny)]<0.35;if(np.t===T.DETRITUS)return Math.random()<0.5;return np.t===T.STONE&&Math.random()<0.3;});
     if(targets.length){
       const[nx,ny]=targets[Math.floor(Math.random()*targets.length)];
       if(get(nx,ny)?.t===T.STONE)grid[idx(nx,ny)]=abiotic(T.DETRITUS);
@@ -1346,20 +1387,62 @@ function stepWasp(x,y,p){
   if(p.buff?.type==='chromadust'&&Math.random()<0.3){const jx=x+Math.floor((Math.random()-0.5)*6),jy=y+Math.floor((Math.random()-0.5)*6);if(inB(jx,jy)&&!get(jx,jy)){swap(x,y,jx,jy);return;}}
   const mvt=p.variant?.traits||[];
   const speed=p.g[1]/255,aggression=p.g[3]/255,resilience=p.g[4]/255;
-  p.energy-=0.08+speed*0.08;
-  if(p.hp<=0||p.energy<=0){set(x,y,null);popDecr(p);return;}
+  // Hive warmth: wasps within 3 cells of their queen get 60% reduced energy drain
+  let hiveWarm=false;
+  for(let dy2=-3;dy2<=3&&!hiveWarm;dy2++)
+    for(let dx2=-3;dx2<=3&&!hiveWarm;dx2++)
+      if(get(x+dx2,y+dy2)?.t===T.QUEEN_WASP)hiveWarm=true;
+  const drain=(0.08+speed*0.08)*(hiveWarm?0.4:1);
+  p.energy-=drain;
+  if(p.hp<=0||p.energy<=0){creatureCorpse(x,y);popDecr(p);return;}
   // Environmental damage
   for(const[nx,ny] of getNeighbors(x,y)){
     const np=get(nx,ny);if(!np)continue;
-    if(np.t===T.FIRE||np.t===T.LAVA){p.hp-=Math.max(3,18*(1-resilience*0.6));if(p.hp<=0){set(x,y,null);popDecr(p);return;}}
-    if(np.t===T.ACID){p.hp-=Math.max(4,22*(1-resilience*0.5));if(p.hp<=0){set(x,y,null);popDecr(p);return;}}
+    if(np.t===T.FIRE||np.t===T.LAVA){p.hp-=Math.max(3,18*(1-resilience*0.6));if(p.hp<=0){creatureCorpse(x,y,true);popDecr(p);return;}}
+    if(np.t===T.ACID){p.hp-=Math.max(4,22*(1-resilience*0.5));if(p.hp<=0){creatureCorpse(x,y);popDecr(p);return;}}
   }
-  // Scavenge detritus/ash as fallback energy
+  // Helper: attempt to promote this wasp into a queen. Tries neighbor cells first
+  // (empty / web / detritus — web and detritus get consumed), then falls back to
+  // an in-place transformation (the wasp itself becomes the queen and dies doing so).
+  // Gated on 20-cell radius + energy threshold + population cap.
+  const tryQueenPromote=()=>{
+    if(p.energy<140) return false;
+    if(POP[T.QUEEN_WASP]>=POP_MAX[T.QUEEN_WASP]) return false;
+    for(let dy3=-20;dy3<=20;dy3++)for(let dx3=-20;dx3<=20;dx3++){
+      if(get(x+dx3,y+dy3)?.t===T.QUEEN_WASP) return false;
+    }
+    const ng=mutateGenome(p.g,mutRate);
+    // Prefer a neighbor cell that is empty or consumable (web/detritus)
+    const candidates=getNeighbors(x,y).filter(([qx,qy])=>{
+      const c=get(qx,qy);return !c||c.t===T.WEB||c.t===T.DETRITUS;
+    });
+    if(candidates.length){
+      const[qx,qy]=candidates[Math.floor(Math.random()*candidates.length)];
+      const prev=get(qx,qy);if(prev?.t===T.DETRITUS||prev?.t===T.WEB){/* consumed */}
+      grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_WASP,ng,p.sid,{energy:160});
+      popIncr({t:T.QUEEN_WASP,sid:p.sid});
+      p.energy-=100;
+      return true;
+    }
+    // Fallback: transform in place (wasp sacrifices itself to become queen)
+    grid[idx(x,y)]=agentWithStrain(T.QUEEN_WASP,ng,p.sid,{energy:160});
+    popDecr(p);
+    popIncr({t:T.QUEEN_WASP,sid:p.sid});
+    return true;
+  };
+  // Scavenge eggs, detritus/ash, and tear spider webs — wasps are carnivores & web-wreckers.
+  // Eating a web has a small chance to spawn a new queen (wasps build hives from captured territory).
   const nbrs=getNeighbors(x,y);
   for(const[nx,ny] of nbrs){
     const np=get(nx,ny);
+    if(np?.t===T.EGG&&Math.random()<0.35){p.energy+=15;set(nx,ny,null);break;}
+    if(np?.t===T.DETRITUS&&Math.random()<0.25){p.energy+=12;set(nx,ny,null);break;}
+    if(np?.t===T.WEB&&Math.random()<0.45){
+      p.energy+=3;set(nx,ny,null);
+      if(Math.random()<0.020&&tryQueenPromote()&&grid[idx(x,y)]?.t===T.QUEEN_WASP)return;
+      break;
+    }
     if(np?.t===T.ASH&&Math.random()<0.12){p.energy+=4;set(nx,ny,null);break;}
-    if(np?.t===T.DETRITUS&&Math.random()<0.18){p.energy+=8;set(nx,ny,null);break;}
   }
   p.energy=Math.min(255,p.energy);
   // Check if near a queen wasp (hive radius = 15 cells) — only hunt when in range
@@ -1368,60 +1451,50 @@ function stepWasp(x,y,p){
   for(let dy2=-HIVE_R;dy2<=HIVE_R&&!nearQueen;dy2++)
     for(let dx2=-HIVE_R;dx2<=HIVE_R&&!nearQueen;dx2++)
       if(get(x+dx2,y+dy2)?.t===T.QUEEN_WASP) nearQueen=true;
-  if(nearQueen){
-    // Attack adjacent spiders
-    for(const[nx,ny] of nbrs){
-      const np=get(nx,ny);
-      if(np?.t===T.SPIDER||np?.t===T.QUEEN_SPIDER){
-        const dmg=Math.floor(12+aggression*28)*(mvt.includes('fighter')?2:1);
-        np.hp-=dmg; p.energy+=18;
-        if(np.hp<=0){
-          set(nx,ny,null);popDecr(np);p.energy+=12;
-          // Queen promotion after a kill with high energy
-          if(p.energy>=185&&Math.random()<0.05&&POP[T.QUEEN_WASP]<POP_MAX[T.QUEEN_WASP]){
-            let qNear2=false;
-            for(let dy3=-20;dy3<=20&&!qNear2;dy3++)for(let dx3=-20;dx3<=20&&!qNear2;dx3++){if(get(x+dx3,y+dy3)?.t===T.QUEEN_WASP)qNear2=true;}
-            if(!qNear2){const qs=nbrs.filter(([qx,qy])=>!get(qx,qy));if(qs.length){const[qx,qy]=qs[Math.floor(Math.random()*qs.length)];const ng=mutateGenome(p.g,mutRate);grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_WASP,ng,p.sid,{energy:160});popIncr({t:T.QUEEN_WASP,sid:p.sid});p.energy-=100;}}
-          }
-        }
-        break;
+  // Attack adjacent worker spiders — wasps cannot kill queen spiders (too tough)
+  for(const[nx,ny] of nbrs){
+    const np=get(nx,ny);
+    if(np?.t===T.SPIDER){
+      const hiveBonus=nearQueen?1.5:1;
+      const dmg=Math.floor((12+aggression*28)*hiveBonus)*(mvt.includes('fighter')?2:1);
+      np.hp-=dmg; p.energy+=18;
+      if(np.hp<=0){
+        creatureCorpse(nx,ny);popDecr(np);p.energy+=12;
+        // Spider kill gives a strong shot at queen promotion — kills are rare & costly.
+        // If promotion consumed this wasp (in-place transform), exit the step entirely.
+        if(Math.random()<0.35&&tryQueenPromote()&&grid[idx(x,y)]?.t===T.QUEEN_WASP)return;
       }
+      break;
     }
   }
-  // Movement — flee fire/acid, else move toward spiders when near queen, else wander
+  // Movement — flee fire/acid, else seek spiders, else wander. Wasps tear through webs.
   const nearFire=nearType(x,y,T.FIRE,T.LAVA);
   const nearAcid=nearType(x,y,T.ACID);
+  // Wasps can enter empty cells, detritus, ash, and web (tearing it as they go)
+  const canTraverse=(nx,ny)=>{const np=get(nx,ny);return !np||np.t===T.DETRITUS||np.t===T.ASH||np.t===T.WEB;};
+  const consumeAtDest=(nx,ny)=>{const np=get(nx,ny);if(np?.t===T.WEB){p.energy+=2;grid[idx(nx,ny)]=null;}};
   if(nearFire||nearAcid){
-    const flee=nbrs.filter(([nx,ny])=>{const np=get(nx,ny);return(!np||np.t===T.DETRITUS||np.t===T.ASH)&&!nearType(nx,ny,T.FIRE,T.LAVA,T.ACID);});
-    if(flee.length){const[mx,my]=flee[Math.floor(Math.random()*flee.length)];swap(x,y,mx,my);}
+    const flee=nbrs.filter(([nx,ny])=>canTraverse(nx,ny)&&!nearType(nx,ny,T.FIRE,T.LAVA,T.ACID));
+    if(flee.length){const[mx,my]=flee[Math.floor(Math.random()*flee.length)];consumeAtDest(mx,my);swap(x,y,mx,my);}
     return;
   }
   const steps=1+Math.floor(speed*1.5);
   for(let s=0;s<steps;s++){
-    let mx=-1,my=-1;
-    if(nearQueen){
-      // Seek nearest spider within hunt range
-      let bestDist=999;
-      const HUNT_R=10;
-      for(let dy2=-HUNT_R;dy2<=HUNT_R;dy2++)for(let dx2=-HUNT_R;dx2<=HUNT_R;dx2++){const tp=get(x+dx2,y+dy2);if(tp?.t===T.SPIDER||tp?.t===T.QUEEN_SPIDER){const d=Math.abs(dx2)+Math.abs(dy2);if(d<bestDist){bestDist=d;mx=x+dx2;my=y+dy2;}}}
-      if(mx>=0){
-        const toward=nbrs.filter(([nx,ny])=>{const np=get(nx,ny);return(!np||np.t===T.DETRITUS||np.t===T.ASH);}).sort((a,b)=>(Math.abs(a[0]-mx)+Math.abs(a[1]-my))-(Math.abs(b[0]-mx)+Math.abs(b[1]-my)));
-        if(toward.length){const[tx,ty]=toward[0];swap(x,y,tx,ty);[x,y]=[tx,ty];}
-      } else {
-        const open=nbrs.filter(([nx,ny])=>{const np=get(nx,ny);return !np||np.t===T.DETRITUS||np.t===T.ASH;});
-        if(open.length){const[tx,ty]=open[Math.floor(Math.random()*open.length)];swap(x,y,tx,ty);[x,y]=[tx,ty];}
-      }
+    // Seek nearby worker spiders — smaller radius so wasps don't dominate the map
+    let mx=-1,my=-1,bestDist=999;
+    const HUNT_R=nearQueen?7:4;
+    for(let dy2=-HUNT_R;dy2<=HUNT_R;dy2++)for(let dx2=-HUNT_R;dx2<=HUNT_R;dx2++){
+      const tp=get(x+dx2,y+dy2);
+      if(tp?.t===T.SPIDER){const d=Math.abs(dx2)+Math.abs(dy2);if(d<bestDist){bestDist=d;mx=x+dx2;my=y+dy2;}}
+    }
+    if(mx>=0){
+      const toward=nbrs.filter(canTraverse).sort((a,b)=>(Math.abs(a[0]-mx)+Math.abs(a[1]-my))-(Math.abs(b[0]-mx)+Math.abs(b[1]-my)));
+      if(toward.length){const[tx,ty]=toward[0];consumeAtDest(tx,ty);swap(x,y,tx,ty);[x,y]=[tx,ty];}
     } else {
-      // Outside hive — just wander
-      const open=nbrs.filter(([nx,ny])=>{const np=get(nx,ny);return !np||np.t===T.DETRITUS||np.t===T.ASH;});
-      if(open.length){const[tx,ty]=open[Math.floor(Math.random()*open.length)];swap(x,y,tx,ty);[x,y]=[tx,ty];}
+      const open=nbrs.filter(canTraverse);
+      if(open.length){const[tx,ty]=open[Math.floor(Math.random()*open.length)];consumeAtDest(tx,ty);swap(x,y,tx,ty);[x,y]=[tx,ty];}
     }
     break;
-  }
-  // Passive queen promotion at high energy
-  if(p.energy>=220&&POP[T.QUEEN_WASP]<POP_MAX[T.QUEEN_WASP]){
-    let qNear=false;for(let dy2=-20;dy2<=20&&!qNear;dy2++)for(let dx2=-20;dx2<=20&&!qNear;dx2++){if(get(x+dx2,y+dy2)?.t===T.QUEEN_WASP)qNear=true;}
-    if(!qNear&&Math.random()<0.006){const nbrs2=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));if(nbrs2.length){const[qx,qy]=nbrs2[Math.floor(Math.random()*nbrs2.length)];const ng=mutateGenome(p.g,mutRate);grid[idx(qx,qy)]=agentWithStrain(T.QUEEN_WASP,ng,p.sid,{energy:160});popIncr({t:T.QUEEN_WASP,sid:p.sid});p.energy-=100;}}
   }
   if(p.energy>200&&Math.random()<p.g[5]/255*0.012*(mvt.includes('fast_repro')?2:1)&&POP[T.WASP]<POP_MAX[T.WASP]){
     const nbrs2=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
@@ -1436,7 +1509,7 @@ function stepQueenWasp(x,y,p){
   p.age++;
   const lv=lightGrid[idx(x,y)];
   p.energy=Math.min(255,p.energy+lv*2+0.4);
-  if(p.hp<=0){set(x,y,null);popDecr(p);return;}
+  if(p.hp<=0){queenCorpse(x,y);popDecr(p);return;}
   const spawnRate=20+Math.floor((1-p.g[5]/255)*80);
   if(p.age%spawnRate===0&&POP[T.WASP]<POP_MAX[T.WASP]){
     const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
@@ -1563,7 +1636,7 @@ function stepQueenSpider(x,y,p){
   p.age++;
   const lv=lightGrid[idx(x,y)];
   p.energy=Math.min(255,p.energy+lv*2+0.4);
-  if(p.hp<=0){set(x,y,null);popDecr(p);return;}
+  if(p.hp<=0){queenCorpse(x,y);popDecr(p);return;}
 
   const spawnRate=12+Math.floor((1-p.g[5]/255)*40);
   if(p.age%spawnRate===0&&POP[T.SPIDER]<POP_MAX[T.SPIDER]){
@@ -2151,10 +2224,35 @@ function stepProgCloud(x,y,p){
     const perp=getPerp();
     const dropX=x+gv.x+(spread>0?perp[0].x:spread<0?perp[1].x:0);
     const dropY=y+gv.y+(spread>0?perp[0].y:spread<0?perp[1].y:0);
-    if(inB(dropX,dropY)&&!grid[idx(dropX,dropY)]){
-      const cell=makeProgCloudParticle(p.emitType||T.WATER);
+    if(!inB(dropX,dropY))return;
+    const emitType=p.emitType||T.WATER;
+    // Life Seed: emit a life burst (matches brush behavior) — the raw MUTAGEN
+    // particle only mutates, it doesn't spawn life on its own.
+    if(emitType===T.MUTAGEN){progCloudLifeSeedBurst(dropX,dropY);return;}
+    if(!grid[idx(dropX,dropY)]){
+      const cell=makeProgCloudParticle(emitType);
       if(cell) grid[idx(dropX,dropY)]=cell;
     }
+  }
+}
+
+// Life Seed burst — scatter 1-3 random worker organisms around the drop point.
+// Workers only (no queens), no mutagen particle — life seed is pure spawning.
+function progCloudLifeSeedBurst(px,py){
+  const seedTypes=[T.PLANT,T.FUNGI,T.ANT,T.SPIDER,T.WASP,T.TERMITE,T.WOOD];
+  const count=3+Math.floor(Math.random()*4);
+  for(let i=0;i<count;i++){
+    const ox=px+Math.floor((Math.random()-0.5)*6);
+    const oy=py+Math.floor((Math.random()-0.5)*6);
+    if(!inB(ox,oy)||get(ox,oy))continue;
+    const type=seedTypes[Math.floor(Math.random()*seedTypes.length)];
+    // Wood is inert terrain, not a genome agent — place directly.
+    if(type===T.WOOD){grid[idx(ox,oy)]={t:T.WOOD,age:0};continue;}
+    const g=randomGenome(type);
+    const s=registerStrain(type,g);
+    const cell=agentWithStrain(type,g,s,{energy:150});
+    grid[idx(ox,oy)]=cell;
+    popIncr(cell);
   }
 }
 
@@ -2170,6 +2268,23 @@ function makeProgCloudParticle(t){
     case T.GUNPOWDER:return abiotic(T.GUNPOWDER);case T.DETRITUS:return abiotic(T.DETRITUS);
     case T.STONE:return{t:T.STONE,age:0,settled:0};case T.CLAY:return abiotic(T.CLAY);
     case T.WHITE_SAND:return abiotic(T.WHITE_SAND);
+    // Special elements
+    case T.CLOUD:return{t:T.CLOUD,age:0,phase:Math.floor(Math.random()*60),charge:60};
+    case T.BLOOM_CLOUD:return{t:T.BLOOM_CLOUD,age:0,phase:0,cool:0};
+    case T.MACHINE:return{t:T.MACHINE,age:0};
+    case T.BACTERIA:return{t:T.BACTERIA,age:0};
+    case T.QUARK_CONDUCTOR:return{t:T.QUARK_CONDUCTOR,age:0};
+    case T.CHROMADUST:{
+      // Chromadust needs a strain registered for its hue bucket or it expires to nothing.
+      // Match the brush: bucket to 30° and lazily register a custom creature for that hue.
+      const hue=Math.floor(Math.random()*12)*30;
+      if(!chromaStrains.has(hue)) chromaStrains.set(hue, createChromaCreature(hue));
+      return{t:T.CHROMADUST,age:0,hue,ttl:150+Math.floor(Math.random()*80)};
+    }
+    // Rx drugs
+    case T.LUCID:return{t:T.LUCID,age:0,ttl:200};
+    case T.CRANK:return{t:T.CRANK,age:0,ttl:200};
+    case T.FLACA:return{t:T.FLACA,age:0,ttl:200};
   }
   // Creature types — spawn with random genome
   if(t===T.ANT||t===T.QUEEN||t===T.SPIDER||t===T.QUEEN_SPIDER||
@@ -2463,7 +2578,8 @@ function stepParticle(x,y){
   if(p.t===T.BACTERIA)return;
   if(p.t===T.BACTERIA_DEAD){stepBacteriaDead(x,y,p);return;}
   // Fractal visual cells — just TTL decay, no physics, no creature interaction
-  if(p.t===T.FRACTAL||p.t===T.JULIA){p.ttl=(p.ttl||300)-1;p.age++;if(p.ttl<=0)grid[idx(x,y)]=null;return;}
+  if(p.t===T.FRACTAL){p.ttl=(p.ttl||300)-1;p.age++;if(p.ttl<=0)grid[idx(x,y)]=null;return;}
+  if(p.t===T.JULIA){p.age++;if(p.ttl!=null){p.ttl--;if(p.ttl<=0)grid[idx(x,y)]=null;}return;}
 
   // Plant wall — biological, needs its own step (decay, detritus)
 
@@ -2865,22 +2981,14 @@ function getColor(p,x,y){
     const [fr,fg,fb]=hslToRgb(hue,92,lit);
     return 0xFF000000|(fb<<16)|(fg<<8)|fr;
   }
-  // ── Julia set fractal (JULIA) ──
+  // ── Cyclic Cellular Automaton (CCA) ──
   if(p.t===T.JULIA){
-    const ttlFrac=Math.min(1,(p.ttl||1)/110);
-    if((p.val||0)>=MAX_JULIA_ITER){
-      // Interior (non-escaping) — dark pulsing purple
-      const pulse=Math.sin(tickCount*0.04+p.age*0.08)*0.5+0.5;
-      const lit=Math.max(2,(6+pulse*10)*ttlFrac);
-      const [fr,fg,fb]=hslToRgb(280,90,lit);
-      return 0xFF000000|(fb<<16)|(fg<<8)|fr;
-    }
-    // Exterior — escape-time bands drive hue; near-boundary bright
-    const iterFrac=(p.val||0)/MAX_JULIA_ITER;
-    const hue=((p.val||0)*18+tickCount*1.5+p.age*0.3)%360;
-    const sat=80+iterFrac*16;
-    const litBase=18+iterFrac*52;
+    const hue=((p.val||0)/CCA_NUM_COLORS)*360;
+    const pulse=Math.sin(tickCount*0.03+(p.val||0)*0.6)*8;
+    const litBase=52+pulse;
+    const ttlFrac=(p.ttl!=null)?Math.min(1,p.ttl/CCA_FADE_TTL):1;
     const lit=Math.max(4,litBase*ttlFrac);
+    const sat=88+Math.sin((p.val||0)*1.1)*8;
     const [fr,fg,fb]=hslToRgb(hue,sat,lit);
     return 0xFF000000|(fb<<16)|(fg<<8)|fr;
   }
@@ -3390,24 +3498,80 @@ function growFractals(){
       state.currentRow=next;
       state.gen++;
 
-    } else if(state.type==='julia'){
-      if(state.radius>state.maxRadius){fractalGrowthStates.splice(i,1);continue;}
-      const r=state.radius;
-      // Walk the perimeter of the Chebyshev square at distance r
-      for(let d=-r;d<=r;d++){
-        for(const [fpx,fpy] of [[state.ox+d,state.oy-r],[state.ox+d,state.oy+r],
-                                 [state.ox-r,state.oy+d],[state.ox+r,state.oy+d]]){
-          if(!inB(fpx,fpy))continue;
-          const ec=grid[idx(fpx,fpy)];if(ec?.t===T.JULIA)continue;
-          // Map grid offset to Julia space via scale
-          let zr=(fpx-state.ox)*JULIA_SCALE, zi=(fpy-state.oy)*JULIA_SCALE, n=0;
-          for(;n<MAX_JULIA_ITER;n++){const r2=zr*zr,i2=zi*zi;if(r2+i2>4)break;const nr=r2-i2+JULIA_CR;zi=2*zr*zi+JULIA_CI;zr=nr;}
-          if(ec?.g)popDecr(ec);
-          // Place all cells — interior (n===MAX_JULIA_ITER) as dark purple, exterior by escape bands
-          grid[idx(fpx,fpy)]={t:T.JULIA,val:n,age:0,ttl:state.ttlBase+Math.floor(Math.random()*120)};
+    } else if(state.type==='cca'){
+      state.age++;
+      if(!state.fading){
+        // ── Active phase: CCA color step (double-buffered) + frontier expansion ──
+        // Color update: for each cell, if any neighbor has next-color, adopt it
+        const nextColors=new Map();
+        for(const ci of state.cells){
+          const p2=grid[ci];
+          if(!p2||p2.t!==T.JULIA)continue;
+          const curVal=p2.val;
+          const nextVal=(curVal+1)%CCA_NUM_COLORS;
+          const cx2=ci%W, cy2=(ci-cx2)/W;
+          let found=false;
+          for(let dy2=-1;dy2<=1&&!found;dy2++){
+            for(let dx2=-1;dx2<=1&&!found;dx2++){
+              if(dx2===0&&dy2===0)continue;
+              const nx2=cx2+dx2,ny2=cy2+dy2;
+              if(!inB(nx2,ny2))continue;
+              const np2=grid[idx(nx2,ny2)];
+              if(np2?.t===T.JULIA&&np2.val===nextVal)found=true;
+            }
+          }
+          if(found)nextColors.set(ci,nextVal);
         }
+        for(const[ci,nv]of nextColors){if(grid[ci]?.t===T.JULIA)grid[ci].val=nv;}
+
+        // Frontier expansion: empty neighbors of existing CCA cells get random colors
+        const frontier=[];
+        for(const ci of state.cells){
+          const cx2=ci%W, cy2=(ci-cx2)/W;
+          for(let dy2=-1;dy2<=1;dy2++){
+            for(let dx2=-1;dx2<=1;dx2++){
+              if(dx2===0&&dy2===0)continue;
+              const nx2=cx2+dx2,ny2=cy2+dy2;
+              if(!inB(nx2,ny2))continue;
+              const ni=idx(nx2,ny2);
+              if(state.cells.has(ni))continue;
+              const np2=grid[ni];
+              if(!np2)frontier.push(ni);
+            }
+          }
+        }
+        for(const fi of frontier){
+          if(grid[fi])continue;
+          grid[fi]={t:T.JULIA, val:Math.floor(Math.random()*CCA_NUM_COLORS), age:0};
+          state.cells.add(fi);
+        }
+        if(state.age>=state.maxAge)state.fading=true;
+      } else {
+        // ── Fade phase: CCA still runs but cells get TTL, no expansion ──
+        for(const ci of state.cells){
+          const p2=grid[ci];
+          if(!p2||p2.t!==T.JULIA)continue;
+          const curVal=p2.val;
+          const nextVal=(curVal+1)%CCA_NUM_COLORS;
+          const cx2=ci%W, cy2=(ci-cx2)/W;
+          let found=false;
+          for(let dy2=-1;dy2<=1&&!found;dy2++){
+            for(let dx2=-1;dx2<=1&&!found;dx2++){
+              if(dx2===0&&dy2===0)continue;
+              const nx2=cx2+dx2,ny2=cy2+dy2;
+              if(!inB(nx2,ny2))continue;
+              const np2=grid[idx(nx2,ny2)];
+              if(np2?.t===T.JULIA&&np2.val===nextVal)found=true;
+            }
+          }
+          if(found){p2.val=nextVal;if(p2.ttl==null)p2.ttl=CCA_FADE_TTL;}
+        }
+        // Clean dead cells
+        for(const ci of state.cells){
+          if(!grid[ci]||grid[ci].t!==T.JULIA)state.cells.delete(ci);
+        }
+        if(state.cells.size===0){fractalGrowthStates.splice(i,1);continue;}
       }
-      state.radius++;
     }
   }
 }
@@ -3537,126 +3701,127 @@ function stepEntropy(){
   const r=entropyRate; // 0-1
   function rndCell(){return[Math.floor(Math.random()*W),Math.floor(Math.random()*H)];}
   function rndEmpty(){let[x,y]=rndCell();return(!get(x,y))?[x,y]:null;}
+  const ef=entropyFilter;
+  // Weighted pick helper: given [[key, weight, action], ...], filter by enabled keys, pick by weight
+  function pickEvent(list){
+    const enabled=list.filter(e=>ef.has(e[0]));
+    if(!enabled.length)return null;
+    let total=0;for(const e of enabled)total+=e[1];
+    let r2=Math.random()*total;
+    for(const e of enabled){r2-=e[1];if(r2<=0)return e[2];}
+    return enabled[enabled.length-1][2];
+  }
 
-  // ── TIER 1: Atmospheric (spark, drip, gust) ──────────────────────
-  // fire spark, water drip, smoke puff, steam vent, ash scatter, detritus deposit
+  // ── TIER 1: Atmospheric ─────────────────────────────────────────
   if(Math.random()<r*0.14){
     const pos=rndEmpty();if(pos){
       const[x,y]=pos;
-      const pick=Math.random();
-      if(pick<0.25)      grid[idx(x,y)]={t:T.FIRE,age:0,ttl:15+Math.floor(Math.random()*25)};
-      else if(pick<0.45) grid[idx(x,y)]={t:T.SMOKE,age:0,ttl:40+Math.floor(Math.random()*40)};
-      else if(pick<0.60) grid[idx(x,y)]={t:T.STEAM,age:0,ttl:40+Math.floor(Math.random()*50)};
-      else if(pick<0.75) grid[idx(x,y)]={t:T.WATER,age:0};
-      else if(pick<0.87) grid[idx(x,y)]={t:T.DETRITUS,age:0};
-      else               grid[idx(x,y)]={t:T.ASH,age:0};
+      const action=pickEvent([
+        ['fire',25,()=>grid[idx(x,y)]={t:T.FIRE,age:0,ttl:15+Math.floor(Math.random()*25)}],
+        ['smoke',20,()=>grid[idx(x,y)]={t:T.SMOKE,age:0,ttl:40+Math.floor(Math.random()*40)}],
+        ['steam',15,()=>grid[idx(x,y)]={t:T.STEAM,age:0,ttl:40+Math.floor(Math.random()*50)}],
+        ['water',15,()=>grid[idx(x,y)]={t:T.WATER,age:0}],
+        ['detritus',12,()=>grid[idx(x,y)]={t:T.DETRITUS,age:0}],
+        ['ash',13,()=>grid[idx(x,y)]={t:T.ASH,age:0}],
+      ]);
+      if(action)action();
     }
   }
 
-  // ── TIER 2: Chemical (acid, lava, ice, drugs) ─────────────────────
+  // ── TIER 2: Chemical ────────────────────────────────────────────
   if(Math.random()<r*0.06){
     const pos=rndEmpty();if(pos){
       const[x,y]=pos;
-      const pick=Math.random();
-      if(pick<0.18)      grid[idx(x,y)]={t:T.ACID,age:0,ttl:200+Math.floor(Math.random()*150)};
-      else if(pick<0.32) grid[idx(x,y)]={t:T.OIL,age:0};
-      else if(pick<0.44) grid[idx(x,y)]={t:T.LAVA,age:0,ttl:300+Math.floor(Math.random()*200)};
-      else if(pick<0.55) grid[idx(x,y)]={t:T.ICE,age:0,ttl:600+Math.floor(Math.random()*400)};
-      else if(pick<0.65) grid[idx(x,y)]={t:T.SALT,age:0};
-      else if(pick<0.73) grid[idx(x,y)]={t:T.MUTAGEN,age:0};
-      else if(pick<0.82) grid[idx(x,y)]={t:T.LUCID,age:0,ttl:200};
-      else if(pick<0.91) grid[idx(x,y)]={t:T.CRANK,age:0,ttl:200};
-      else{
-        // Chromadust shower (3-6 particles from top)
-        const count=3+Math.floor(Math.random()*4);
-        for(let i=0;i<count;i++){
-          const cx=Math.floor(Math.random()*W),cy=Math.floor(Math.random()*8);
-          if(inB(cx,cy)&&!get(cx,cy)){
-            const hue=Math.floor(Math.random()*12)*30;
-            if(!chromaStrains.has(hue))chromaStrains.set(hue,createChromaCreature(hue));
-            grid[idx(cx,cy)]={t:T.CHROMADUST,age:0,hue,ttl:150+Math.floor(Math.random()*80)};
+      const action=pickEvent([
+        ['acid',18,()=>grid[idx(x,y)]={t:T.ACID,age:0,ttl:200+Math.floor(Math.random()*150)}],
+        ['oil',14,()=>grid[idx(x,y)]={t:T.OIL,age:0}],
+        ['lava',12,()=>grid[idx(x,y)]={t:T.LAVA,age:0,ttl:300+Math.floor(Math.random()*200)}],
+        ['ice',11,()=>grid[idx(x,y)]={t:T.ICE,age:0,ttl:600+Math.floor(Math.random()*400)}],
+        ['salt',10,()=>grid[idx(x,y)]={t:T.SALT,age:0}],
+        ['mutagen',8,()=>grid[idx(x,y)]={t:T.MUTAGEN,age:0}],
+        ['lucid',9,()=>grid[idx(x,y)]={t:T.LUCID,age:0,ttl:200}],
+        ['crank',9,()=>grid[idx(x,y)]={t:T.CRANK,age:0,ttl:200}],
+        ['flaca',9,()=>grid[idx(x,y)]={t:T.FLACA,age:0,ttl:200}],
+        ['chromadust',9,()=>{
+          const count=3+Math.floor(Math.random()*4);
+          for(let i=0;i<count;i++){
+            const cx=Math.floor(Math.random()*W),cy=Math.floor(Math.random()*8);
+            if(inB(cx,cy)&&!get(cx,cy)){
+              const hue=Math.floor(Math.random()*12)*30;
+              if(!chromaStrains.has(hue))chromaStrains.set(hue,createChromaCreature(hue));
+              grid[idx(cx,cy)]={t:T.CHROMADUST,age:0,hue,ttl:150+Math.floor(Math.random()*80)};
+            }
           }
-        }
-      }
+        }],
+      ]);
+      if(action)action();
     }
   }
 
-  // ── TIER 3: Biological (creature/plant/fungi spawn) ───────────────
+  // ── TIER 3: Biological ──────────────────────────────────────────
   if(Math.random()<r*0.035){
     const pos=rndEmpty();if(pos){
       const[x,y]=pos;
       const genome=Array(6).fill(0).map(()=>100+Math.floor(Math.random()*100));
-      const pick=Math.random();
-      let t2=null;
-      if(pick<0.22)      t2=T.ANT;
-      else if(pick<0.38) t2=T.SPIDER;
-      else if(pick<0.50) t2=T.WASP;
-      else if(pick<0.62) t2=T.TERMITE;
-      else if(pick<0.72) t2=T.FUNGI;
-      else if(pick<0.80) t2=T.PLANT;
-      else if(pick<0.86) t2=T.SEED;
-      else if(pick<0.91){grid[idx(x,y)]={t:T.SPORE,age:0,ttl:180};t2=null;}
-      else if(pick<0.96){grid[idx(x,y)]={t:T.ALGAE,age:0};t2=null;}
-      else               {grid[idx(x,y)]={t:T.EGG,age:0,g:genome,hp:20,energy:80};t2=null;}
-      if(t2){
-        const cell=agentWithStrain(t2,genome,null,{energy:120});
-        if(cell){grid[idx(x,y)]=cell;popIncr(cell);}
-      }
+      const spawnAgent=(type)=>()=>{const cell=agentWithStrain(type,genome,null,{energy:120});if(cell){grid[idx(x,y)]=cell;popIncr(cell);}};
+      const action=pickEvent([
+        ['ant',22,spawnAgent(T.ANT)],
+        ['spider',16,spawnAgent(T.SPIDER)],
+        ['wasp',12,spawnAgent(T.WASP)],
+        ['termite',12,spawnAgent(T.TERMITE)],
+        ['fungi',10,spawnAgent(T.FUNGI)],
+        ['plant',8,spawnAgent(T.PLANT)],
+        ['seed',6,()=>grid[idx(x,y)]={t:T.SEED,age:0,g:genome,energy:100}],
+        ['spore',5,()=>grid[idx(x,y)]={t:T.SPORE,age:0,ttl:180}],
+        ['egg',4,()=>grid[idx(x,y)]={t:T.EGG,age:0,g:genome,hp:20,energy:80}],
+      ]);
+      if(action)action();
     }
   }
 
   // ── TIER 4: Cosmic events (rare, high-impact) ─────────────────────
   if(Math.random()<r*0.010){
-    const cosmic=Math.random();
-
-    if(cosmic<0.14){
-      // ☄️ Meteorite — lava core + fire blast radius
-      const[cx,cy]=rndCell();
-      for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){
-        const fx=cx+dx,fy=cy+dy;if(!inB(fx,fy))continue;
-        const dist=Math.sqrt(dx*dx+dy*dy);
-        const ec=get(fx,fy);if(ec?.g)popDecr(ec);
-        if(dist<=1.5) grid[idx(fx,fy)]={t:T.LAVA,age:0,ttl:400+Math.floor(Math.random()*200)};
-        else if(dist<=3) grid[idx(fx,fy)]={t:T.FIRE,age:0,ttl:20+Math.floor(Math.random()*30)};
-      }
-    }
-    else if(cosmic<0.26){
-      // ⚡ Lightning — vertical fire column from sky
-      const lx=Math.floor(Math.random()*W);
-      const depth=8+Math.floor(Math.random()*20);
-      for(let ly=0;ly<depth;ly++){
-        if(!inB(lx,ly))continue;
-        const ec=get(lx,ly);if(ec?.g)popDecr(ec);
-        grid[idx(lx,ly)]={t:T.FIRE,age:0,ttl:20+Math.floor(Math.random()*25)};
-      }
-    }
-    else if(cosmic<0.38){
-      // 👑 Surprise queen spawns
-      const pos=rndEmpty();if(pos){
+    const action=pickEvent([
+      ['meteor',14,()=>{
+        const[cx,cy]=rndCell();
+        for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){
+          const fx=cx+dx,fy=cy+dy;if(!inB(fx,fy))continue;
+          const dist=Math.sqrt(dx*dx+dy*dy);
+          const ec=get(fx,fy);if(ec?.g)popDecr(ec);
+          if(dist<=1.5) grid[idx(fx,fy)]={t:T.LAVA,age:0,ttl:400+Math.floor(Math.random()*200)};
+          else if(dist<=3) grid[idx(fx,fy)]={t:T.FIRE,age:0,ttl:20+Math.floor(Math.random()*30)};
+        }
+      }],
+      ['lightning',12,()=>{
+        const lx=Math.floor(Math.random()*W);
+        const depth=8+Math.floor(Math.random()*20);
+        for(let ly=0;ly<depth;ly++){
+          if(!inB(lx,ly))continue;
+          const ec=get(lx,ly);if(ec?.g)popDecr(ec);
+          grid[idx(lx,ly)]={t:T.FIRE,age:0,ttl:20+Math.floor(Math.random()*25)};
+        }
+      }],
+      ['queen_spawn',12,()=>{
+        const pos=rndEmpty();if(!pos)return;
         const[x,y]=pos;
         const qtypes=[T.QUEEN,T.QUEEN_SPIDER,T.QUEEN_WASP,T.QUEEN_TERMITE];
         const qt=qtypes[Math.floor(Math.random()*qtypes.length)];
-        const popKey=qt===T.QUEEN?T.QUEEN:qt;
-        if((POP[popKey]||0)<(POP_MAX[popKey]||10)){
+        if((POP[qt]||0)<(POP_MAX[qt]||10)){
           const genome=Array(6).fill(0).map(()=>80+Math.floor(Math.random()*120));
           const cell=agentWithStrain(qt,genome,null,{energy:200});
           if(cell){grid[idx(x,y)]=cell;popIncr(cell);}
         }
-      }
-    }
-    else if(cosmic<0.50){
-      // 🦠 Rogue VIRUS cells appear
-      if(!machineRunning){
+      }],
+      ['virus',12,()=>{
+        if(machineRunning)return;
         const count=2+Math.floor(Math.random()*4);
         for(let i=0;i<count;i++){
           const pos=rndEmpty();
           if(pos){grid[idx(pos[0],pos[1])]={t:T.MACHINE,age:0};lastMachinePlacedTime=lastMachinePlacedTime||Date.now();}
         }
-      }
-    }
-    else if(cosmic<0.62){
-      // 🧫 Rogue BACTERIA cluster appears
-      if(!bacteriaRunning){
+      }],
+      ['bacteria',12,()=>{
+        if(bacteriaRunning)return;
         const ccx=Math.floor(Math.random()*(W/2))*2;
         const ccy=Math.floor(Math.random()*(H/2))*2;
         for(let by=0;by<2;by++)for(let bx=0;bx<2;bx++){
@@ -3664,56 +3829,49 @@ function stepEntropy(){
             grid[idx(ccx+bx,ccy+by)]={t:T.BACTERIA,age:0};
         }
         if(!lastBacteriaPlacedTime)lastBacteriaPlacedTime=Date.now();
-      }
-    }
-    else if(cosmic<0.72){
-      // 🪱 Worm spawns from nowhere
-      const[wx,wy]=rndCell();
-      const wid=wormNextId++;
-      const cells2=[];
-      for(let i=0;i<5;i++){const cx=wx+i,cy=wy;if(!inB(cx,cy)||get(cx,cy))continue;cells2.push([cx,cy]);grid[idx(cx,cy)]={t:T.WORM,wid,age:0};}
-      if(cells2.length>=2)worms.set(wid,{cells:cells2,dir:[1,0],energy:200,tick:0});
-    }
-    else if(cosmic<0.82){
-      // 💥 Gunpowder chain reaction — scatter a few GP cells near existing fire
-      let ignition=null;
-      for(let i=0;i<W*H;i++){if(grid[i]?.t===T.FIRE){ignition=i;break;}}
-      if(ignition){
+      }],
+      ['worm',10,()=>{
+        const[wx,wy]=rndCell();
+        const wid=wormNextId++;
+        const cells2=[];
+        for(let i=0;i<5;i++){const cx=wx+i,cy=wy;if(!inB(cx,cy)||get(cx,cy))continue;cells2.push([cx,cy]);grid[idx(cx,cy)]={t:T.WORM,wid,age:0};}
+        if(cells2.length>=2)worms.set(wid,{cells:cells2,dir:[1,0],energy:200,tick:0});
+      }],
+      ['gunpowder_chain',10,()=>{
+        let ignition=null;
+        for(let i=0;i<W*H;i++){if(grid[i]?.t===T.FIRE){ignition=i;break;}}
+        if(!ignition)return;
         const ix=ignition%W,iy=Math.floor(ignition/W);
         const count=4+Math.floor(Math.random()*6);
         for(let i=0;i<count;i++){
           const gx=ix+Math.floor((Math.random()-0.5)*12),gy=iy+Math.floor((Math.random()-0.5)*12);
           if(inB(gx,gy)&&!get(gx,gy))grid[idx(gx,gy)]={t:T.GUNPOWDER,age:0};
         }
-      }
-    }
-    else if(cosmic<0.91){
-      // 🧬 Custom creature spontaneously appears (if lab has creatures)
-      if(customCreatures.size>0){
+      }],
+      ['custom_creature',9,()=>{
+        if(customCreatures.size===0)return;
         const ids=[...customCreatures.keys()];
         const id=ids[Math.floor(Math.random()*ids.length)];
         const def=customCreatures.get(id);
-        if(def){
-          const pos=rndEmpty();if(pos){
-            const cell=spawnCustomCell(id,pos[0],pos[1],false);
-            if(cell){grid[idx(pos[0],pos[1])]=cell;POP[id]=(POP[id]||0)+1;}
-          }
+        if(!def)return;
+        const pos=rndEmpty();if(!pos)return;
+        const cell=spawnCustomCell(id,pos[0],pos[1],false);
+        if(cell){grid[idx(pos[0],pos[1])]=cell;POP[id]=(POP[id]||0)+1;}
+      }],
+      ['flood',9,()=>{
+        const side=Math.floor(Math.random()*4);
+        const count=5+Math.floor(Math.random()*10);
+        for(let i=0;i<count;i++){
+          let wx2,wy2;
+          if(side===0){wx2=Math.floor(Math.random()*W);wy2=0;}
+          else if(side===1){wx2=W-1;wy2=Math.floor(Math.random()*H);}
+          else if(side===2){wx2=Math.floor(Math.random()*W);wy2=H-1;}
+          else{wx2=0;wy2=Math.floor(Math.random()*H);}
+          if(inB(wx2,wy2)&&!get(wx2,wy2))grid[idx(wx2,wy2)]={t:T.WATER,age:0};
         }
-      }
-    }
-    else {
-      // 🌊 Flood surge — water erupts from a random edge
-      const side=Math.floor(Math.random()*4);
-      const count=5+Math.floor(Math.random()*10);
-      for(let i=0;i<count;i++){
-        let wx2,wy2;
-        if(side===0){wx2=Math.floor(Math.random()*W);wy2=0;}
-        else if(side===1){wx2=W-1;wy2=Math.floor(Math.random()*H);}
-        else if(side===2){wx2=Math.floor(Math.random()*W);wy2=H-1;}
-        else{wx2=0;wy2=Math.floor(Math.random()*H);}
-        if(inB(wx2,wy2)&&!get(wx2,wy2))grid[idx(wx2,wy2)]={t:T.WATER,age:0};
-      }
-    }
+      }],
+    ]);
+    if(action)action();
   }
 }
 
@@ -3954,7 +4112,7 @@ const TIP_LABELS={
   [T.TUNNEL_WALL]:'TUNNEL WALL',
   [T.FROGSTONE]:'FROGSTONE',
   [T.FLACA]:'FLACA',
-  [T.FRACTAL]:'SIERP',[T.JULIA]:'JULIA',
+  [T.FRACTAL]:'SIERP',[T.JULIA]:'CCA',
 };
 const TIP_COLORS={
   [T.WALL]:'#888',[T.FRIDGE_WALL]:'#44aaee',[T.CLAY]:'#7a8599',[T.CLAY_HARD]:'#5e6a7a',[T.SAND]:'#c4a35a',[T.GOLD_SAND]:'#ffc800',
@@ -4087,6 +4245,18 @@ function drawAt(cx,cy){
     return;
   }
 
+  // Erase tool — handle before any element-specific logic so it always works
+  if(currentTool==='erase'){
+    for(let dy=-brushSize;dy<=brushSize;dy++){
+      for(let dx=-brushSize;dx<=brushSize;dx++){
+        if(dx*dx+dy*dy>brushSize*brushSize)continue;
+        const px=gx+dx,py=gy+dy;
+        erase(px,py);
+      }
+    }
+    return;
+  }
+
   // ── RNA stamps: place exactly once at click center, ignore brushSize ──
   if(currentEl==='rna1'){
     const RNA_GLIDER=[[0,-1],[1,0],[-1,1],[0,1],[1,1]];
@@ -4122,24 +4292,27 @@ function drawAt(cx,cy){
   }
 
   if(currentEl==='fractal2'){
-    // JULIA seed: single dot at center that crystallises outward ring by ring
+    // CCA seed: circle of random-color cells that evolve via cyclic automaton rules
     const cx=Math.round(gx), cy=Math.round(gy);
-    // Place seed at center (compute Julia val for z=0)
-    if(inB(cx,cy)){
-      let tzr=0,tzi=0,n=0;
-      for(;n<MAX_JULIA_ITER;n++){
-        const r2=tzr*tzr,i2=tzi*tzi;
-        if(r2+i2>4)break;
-        const nr=r2-i2+JULIA_CR;tzi=2*tzr*tzi+JULIA_CI;tzr=nr;
+    const r=CCA_SEED_RADIUS;
+    const cellIndices=new Set();
+    for(let dy=-r;dy<=r;dy++){
+      for(let dx=-r;dx<=r;dx++){
+        if(dx*dx+dy*dy>r*r)continue;
+        const px=cx+dx, py=cy+dy;
+        if(!inB(px,py))continue;
+        const i=idx(px,py);
+        const ec=grid[i];
+        if(ec?.t===T.JULIA)continue;
+        if(ec?.g)popDecr(ec);
+        grid[i]={t:T.JULIA, val:Math.floor(Math.random()*CCA_NUM_COLORS), age:0};
+        cellIndices.add(i);
       }
-      const ec=grid[idx(cx,cy)];if(ec?.g)popDecr(ec);
-      grid[idx(cx,cy)]={t:T.JULIA,val:n,age:0,ttl:800+Math.floor(Math.random()*100)};
     }
     fractalGrowthStates.push({
-      type:'julia', ox:cx, oy:cy,
-      radius:1,
-      maxRadius:250,
-      ttlBase:800
+      type:'cca', ox:cx, oy:cy,
+      cells:cellIndices,
+      age:0, maxAge:CCA_MAX_AGE, fading:false
     });
     return;
   }
@@ -4149,7 +4322,6 @@ function drawAt(cx,cy){
       if(dx*dx+dy*dy>brushSize*brushSize)continue;
       const px=gx+dx,py=gy+dy;
       if(!inB(px,py))continue;
-      if(currentTool==='erase'){erase(px,py);continue;}
 
       const cur=grid[idx(px,py)];
       if(cur&&isWall(cur.t))continue;
@@ -4193,32 +4365,10 @@ function drawAt(cx,cy){
         }
         case 'crank':      grid[idx(px,py)]={t:T.CRANK,age:0,ttl:250};break;
         case 'flaca':      grid[idx(px,py)]={t:T.FLACA,age:0,ttl:250};break;
-        case 'mutagen': {
-          // Life Seed drops a burst of random organisms at cursor + scatter several seeds
-          const seedTypes=[T.ANT,T.PLANT,T.SPIDER,T.FUNGI,T.WASP,T.QUEEN,T.QUEEN_SPIDER,T.QUEEN_WASP];
-          const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
-          // Drop 3-6 random organisms scattered in radius
-          const burstCount=3+Math.floor(Math.random()*4);
-          for(let b=0;b<burstCount;b++){
-            const ox=px+Math.floor((Math.random()-0.5)*10);
-            const oy=py+Math.floor((Math.random()-0.5)*10);
-            if(!inB(ox,oy)||get(ox,oy))continue;
-            const t=pick(seedTypes);
-            const g=randomGenome(t);
-            const s=registerStrain(t,g);
-            grid[idx(ox,oy)]=agentWithStrain(t,g,s,{energy:150});
-            popIncr({t,sid:s});
-          }
-          // Also drop 2-3 life seeds nearby to keep mutating
-          const seedCount=2+Math.floor(Math.random()*2);
-          for(let b=0;b<seedCount;b++){
-            const ox=px+Math.floor((Math.random()-0.5)*8);
-            const oy=py+Math.floor((Math.random()-0.5)*8);
-            if(inB(ox,oy)&&!get(ox,oy))
-              grid[idx(ox,oy)]={t:T.MUTAGEN,age:0,energy:120,recipe:[128,128,128,128,128,128]};
-          }
+        case 'mutagen':
+          // Life Seed uses the same spawn pool as prog cloud emits — workers only, plus wood
+          progCloudLifeSeedBurst(px,py);
           break;
-        }
         case 'seed':{const g=randomGenome(T.PLANT);const s=registerStrain(T.PLANT,g);grid[idx(px,py)]={t:T.SEED,age:0,g,sid:s,energy:120};break;}
         case 'plant':{const g=randomGenome(T.PLANT);const s=registerStrain(T.PLANT,g);grid[idx(px,py)]=agentWithStrain(T.PLANT,g,s,{energy:120});POP[T.PLANT]++;break;}
         case 'ant':{const g=randomGenome(T.ANT);const s=registerStrain(T.ANT,g);grid[idx(px,py)]=agentWithStrain(T.ANT,g,s,{energy:150});POP[T.ANT]++;break;}
@@ -5283,6 +5433,10 @@ function getProgVoidConfig(){
     ant:T.ANT,queen:T.QUEEN,spider:T.SPIDER,queen_spider:T.QUEEN_SPIDER,
     fungi:T.FUNGI,wasp:T.WASP,queen_wasp:T.QUEEN_WASP,
     termite:T.TERMITE,queen_termite:T.QUEEN_TERMITE,plant:T.PLANT,
+    mutagen:T.MUTAGEN,chromadust:T.CHROMADUST,
+    machine:T.MACHINE,bacteria:T.BACTERIA,quark:T.QUARK_CONDUCTOR,
+    fractal:T.FRACTAL,julia:T.JULIA,web:T.WEB,spore:T.SPORE,egg:T.EGG,seed:T.SEED,
+    lucid:T.LUCID,crank:T.CRANK,flaca:T.FLACA,
     sand_all:'sand_all',agents:'agents'
   };
   const key=_dom('pv-type')?.value||'water';
@@ -5296,7 +5450,10 @@ function getProgCloudConfig(){
     fire:T.FIRE,oil:T.OIL,gold_sand:T.GOLD_SAND,stone:T.STONE,clay:T.CLAY,white_sand:T.WHITE_SAND,
     ant:T.ANT,queen:T.QUEEN,spider:T.SPIDER,queen_spider:T.QUEEN_SPIDER,
     fungi:T.FUNGI,wasp:T.WASP,queen_wasp:T.QUEEN_WASP,
-    termite:T.TERMITE,queen_termite:T.QUEEN_TERMITE,plant:T.PLANT
+    termite:T.TERMITE,queen_termite:T.QUEEN_TERMITE,plant:T.PLANT,
+    mutagen:T.MUTAGEN,chromadust:T.CHROMADUST,cloud:T.CLOUD,bloom_cloud:T.BLOOM_CLOUD,
+    machine:T.MACHINE,bacteria:T.BACTERIA,quark:T.QUARK_CONDUCTOR,
+    lucid:T.LUCID,crank:T.CRANK,flaca:T.FLACA
   };
   const key=_dom('pc-type')?.value||'water';
   const rate=parseInt(_dom('pc-rate')?.value||30);
@@ -6735,6 +6892,16 @@ export function createEngine(canvasEl, stateCallback) {
     setMutRate(r)      { mutRate = r; },
     getMutRate()       { return mutRate; },
     setEntropyRate(r)  { entropyRate = r; },
+    getEntropyKeys()   { return [...ENTROPY_KEYS]; },
+    getEntropyFilter() { return [...entropyFilter]; },
+    setEntropyFilterKey(key, enabled) {
+      if(!ENTROPY_KEYS.includes(key)) return;
+      if(enabled) entropyFilter.add(key);
+      else entropyFilter.delete(key);
+    },
+    setEntropyFilterAll(enabled) {
+      entropyFilter = new Set(enabled ? ENTROPY_KEYS : []);
+    },
     getTickCount()  { return tickCount; },
     getGrid()       { return grid; },
     startGoL() {
