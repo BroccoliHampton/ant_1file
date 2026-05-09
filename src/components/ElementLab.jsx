@@ -223,21 +223,32 @@ export default function ElementLab() {
 
   return (
     <>
-      <div onClick={close} style={{ position:'absolute', inset:0, zIndex:189, background:'rgba(0,0,0,0.55)' }} />
-      <div style={{
-        position: 'absolute', top: '50%', left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: 'min(560px, 96vw)', maxHeight: '88vh',
-        zIndex: 190,
-        background: 'var(--menu-bg, #111)',
-        border: '1px solid var(--btn-border, #333)',
-        borderRadius: '10px',
-        display: 'flex', flexDirection: 'column',
-        fontFamily: 'var(--mono, monospace)',
-        color: 'var(--text, #fff)',
-        boxShadow: '0 12px 48px rgba(0,0,0,0.7)',
-        overflow: 'hidden',
-      }}>
+      {/* Use position:fixed so the modal escapes the phone-screen overflow:hidden
+          clipping (matches Creature Lab pattern). The full-screen overlay also
+          handles outside-click-to-close. */}
+      <div
+        onClick={close}
+        style={{
+          position:'fixed', inset:0, zIndex:300,
+          background:'rgba(0,0,0,0.6)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          padding:'12px',
+        }}
+      >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: 'min(560px, 100%)',
+          maxHeight: '100%',
+          background: 'var(--menu-bg, #111)',
+          border: '1px solid var(--btn-border, #333)',
+          borderRadius: '10px',
+          display: 'flex', flexDirection: 'column',
+          fontFamily: 'var(--mono, monospace)',
+          color: 'var(--text, #fff)',
+          boxShadow: '0 12px 48px rgba(0,0,0,0.7)',
+          overflow: 'hidden',
+        }}>
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center',
@@ -378,6 +389,7 @@ export default function ElementLab() {
             {editingId == null ? '💾 SAVE' : '💾 UPDATE'}
           </button>
         </div>
+      </div>
       </div>
     </>
   )
