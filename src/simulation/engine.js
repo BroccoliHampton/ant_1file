@@ -7187,6 +7187,45 @@ export function createEngine(canvasEl, stateCallback) {
     setEntropyFilterAll(enabled) {
       entropyFilter = new Set(enabled ? ENTROPY_KEYS : []);
     },
+    // ─── Element Lab API ────────────────────────────────────────────
+    // List user-created (or hardcoded test) custom element definitions.
+    // Filter by `fromLab: true` to get only user-saved ones.
+    listCustomElements({ userOnly = false } = {}) {
+      const out = [];
+      for (const def of customElementDefs.values()) {
+        if (userOnly && !def.fromLab) continue;
+        out.push(def);
+      }
+      return out;
+    },
+    // Save or update an element definition. Returns the assigned id.
+    saveCustomElement(def) {
+      // Allocate an id if missing; mark as user-created so we can tell apart
+      // from the hardcoded test elements (Goo / Glowmoss).
+      if (def.id == null) def.id = nextCustomElementId++;
+      else if (def.id >= nextCustomElementId) nextCustomElementId = def.id + 1;
+      def.fromLab = true;
+      registerCustomElement(def);
+      return def.id;
+    },
+    deleteCustomElement(id) {
+      // Don't allow deleting hardcoded test elements (id 1, 2)
+      const def = customElementDefs.get(id);
+      if (!def || !def.fromLab) return false;
+      customElementDefs.delete(id);
+      // Remove any FLAMMABILITY entry that might have been registered
+      const flKey = T.CUSTOM_ELEMENT * 10000 + id;
+      if (FLAMMABILITY[flKey] != null) delete FLAMMABILITY[flKey];
+      return true;
+    },
+    // Bulk import (used at startup to load saved elements from localStorage)
+    importCustomElements(defs) {
+      for (const def of defs) {
+        def.fromLab = true;
+        if (def.id != null && def.id >= nextCustomElementId) nextCustomElementId = def.id + 1;
+        registerCustomElement(def);
+      }
+    },
     getTickCount()  { return tickCount; },
     getGrid()       { return grid; },
     startGoL() {

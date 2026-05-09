@@ -32,6 +32,7 @@ export default function MenuDrawer() {
   const seed       = useSimStore(s => s.seed)
   const randomMap  = useSimStore(s => s.randomMap)
   const openLab    = useSimStore(s => s.openLab)
+  const setElementLabOpen = useSimStore(s => s.setElementLabOpen)
   const mutRate       = useSimStore(s => s.mutRate)
   const setMutRate    = useSimStore(s => s.setMutRate)
   const entropyRate   = useSimStore(s => s.entropyRate)
@@ -75,6 +76,13 @@ export default function MenuDrawer() {
             <div className="menu-section-label">CREATURE LAB</div>
             <div className="menu-btn-grid">
               <button className="mbtn primary" onClick={() => { openLab(); close(); }}>🧬 OPEN LAB</button>
+            </div>
+          </div>
+
+          <div className="menu-section">
+            <div className="menu-section-label">ELEMENT LAB</div>
+            <div className="menu-btn-grid">
+              <button className="mbtn primary" onClick={() => { setElementLabOpen(true); close(); }}>⚗ OPEN LAB</button>
             </div>
           </div>
 

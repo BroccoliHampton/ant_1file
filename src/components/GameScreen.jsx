@@ -5,11 +5,33 @@ import DeviceGrip from './DeviceGrip.jsx'
 import Toolbar from './Toolbar/index.jsx'
 import MenuDrawer from './MenuDrawer.jsx'
 import TerraChat from './TerraChat.jsx'
+import ElementLab from './ElementLab.jsx'
 import { useSimStore } from '../store/simStore.js'
+import { useEffect } from 'react'
+
+const ELEM_STORAGE_KEY = 'aaf_custom_elements_v1'
 
 export default function GameScreen({ theme, onToggleTheme }) {
   const terraOpen = useSimStore(s => s.terraOpen)
   const setTerraOpen = useSimStore(s => s.setTerraOpen)
+  const engine = useSimStore(s => s.engine)
+  const bumpCustomElements = useSimStore(s => s.bumpCustomElements)
+
+  // Once the engine is ready, load any saved custom elements from localStorage.
+  useEffect(() => {
+    if (!engine) return
+    try {
+      const raw = localStorage.getItem(ELEM_STORAGE_KEY)
+      if (!raw) return
+      const defs = JSON.parse(raw) || []
+      if (defs.length) {
+        engine.importCustomElements(defs)
+        bumpCustomElements()
+      }
+    } catch (e) {
+      console.warn('Could not restore custom elements:', e)
+    }
+  }, [engine])
   return (
     <div id="app" data-theme={theme}>
       {/* Hidden legacy divs the engine JS needs */}
@@ -31,6 +53,7 @@ export default function GameScreen({ theme, onToggleTheme }) {
       <Toolbar />
       <MenuDrawer />
       <TerraChat open={terraOpen} onClose={() => setTerraOpen(false)} />
+      <ElementLab />
 
       {/* ── Weather Station config panel (engine wires up button listeners) ── */}
       <div id="ws-panel" style={{display:'none',position:'fixed',bottom:'0',left:'50%',transform:'translateX(-50%)',zIndex:200,background:'var(--menu-bg)',border:'1px solid var(--btn-border)',borderRadius:'10px 10px 0 0',padding:'8px 12px',minWidth:'240px',fontFamily:'var(--mono)',fontSize:'8px',color:'var(--text)'}}>
