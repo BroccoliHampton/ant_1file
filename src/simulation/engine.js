@@ -118,6 +118,42 @@ const T = {
 let fridgeZones=[];
 function inFridge(x,y){ return fridgeZones.some(f=>x>f.x1&&x<f.x2&&y>f.y1&&y<f.y2); }
 
+// Phase-change registries — used by stepFire / stepLava / stepIce / stepSteam
+// instead of inline literals. Custom elements register here at save time so
+// they automatically participate in fire/lava/freeze reactions.
+//
+// FLAMMABILITY[t] — chance multiplier (0..1) that this material catches fire
+// when adjacent to fire or lava. 0 (or missing) = inert. Used by stepFire and
+// stepLava. The two reactions weight the table differently; both share keys.
+const FLAMMABILITY={
+  [T.OIL]:1.0, [T.WEB]:0.95, [T.PLANT]:0.85, [T.PLANT_WALL]:0.7,
+  [T.FUNGI]:0.8, [T.SPORE]:0.9, [T.WOOD]:0.5, [T.ASH]:0.1,
+  [T.GUNPOWDER]:1.0, [T.DETRITUS]:0.3,
+};
+// stepLava uses slightly different ratios (it burns hotter); these override
+// the base FLAMMABILITY when present, otherwise the base value is used.
+const FLAMMABILITY_LAVA={
+  [T.WOOD]:0.9, [T.PLANT]:0.8, [T.FUNGI]:0.7, [T.OIL]:0.95,
+  [T.DETRITUS]:0.5, [T.WEB]:0.9, [T.GUNPOWDER]:1.0,
+};
+function getFlammability(t, byLava=false){
+  if(byLava){
+    if(FLAMMABILITY_LAVA[t]!==undefined) return FLAMMABILITY_LAVA[t];
+  }
+  return FLAMMABILITY[t]??0;
+}
+
+// MELTS_TO[t] — when this cell is touched by fire/lava/heat, what does it
+// become? (e.g. ICE → WATER). Used by stepIce + future heat-source elements.
+const MELTS_TO={
+  [T.ICE]:T.WATER,
+};
+// FREEZES_TO[t] — when this cell is touched by extreme cold, what does it
+// become? Currently unused but reserved for cool-source elements.
+const FREEZES_TO={
+  [T.WATER]:T.ICE,
+};
+
 // Abiotic density table (higher=heavier)
 const DENSITY={
   [T.WALL]:999,[T.FRIDGE_WALL]:999,[T.CLAY_HARD]:999,
@@ -176,8 +212,19 @@ function tryCraft(x,y,p){
 function getDens(p){
   if(!p) return 0;
   if(p.g) return 2+(p.g[0]/255)*4; // genome density gene maps 2–6
+  // Custom elements expose density via their definition (Element Lab).
+  if(p.customElem!==undefined){
+    const def=customElementDefs?.get(p.customElem);
+    if(def?.density!==undefined) return def.density;
+  }
   return DENSITY[p.t]??2;
 }
+
+// Element Lab registry (Phase 0 stub — populated when Element Lab ships).
+// Keys: numeric custom element IDs. Values: definition objects with traits,
+// hue, density, flammability, etc. The stub is initialized empty so all the
+// extension hooks (getDens, getFlammability, getColor) are safe to call.
+const customElementDefs = new Map();
 
 // ================================================================
 //  GENOME SYSTEM — kingdom-specific genes
@@ -680,8 +727,8 @@ function stepPlant(x,y,p){
     if(np.t===T.SALT)p.energy=Math.max(0,p.energy-1);
     if(np.t===T.ASH)p.energy=Math.min(255,p.energy+0.5);
     if(np.t===T.WASP&&Math.random()<0.12){set(nx,ny,null);popDecr(np);}
-    // Plants choke out spider web — convert adjacent web into plant cells (aggressive takeover)
-    if(np.t===T.WEB&&Math.random()<0.82&&POP[T.PLANT]<POP_MAX[T.PLANT]){
+    // Plants choke out spider web — convert adjacent web into plant cells (contested takeover)
+    if(np.t===T.WEB&&Math.random()<0.30&&POP[T.PLANT]<POP_MAX[T.PLANT]){
       const ng=mutateGenome(p.g,mutRate);
       grid[idx(nx,ny)]=agentWithStrain(T.PLANT,ng,p.sid,{energy:100,growTimer:Math.floor(6+Math.random()*8)});
       popIncr({t:T.PLANT,sid:p.sid});
@@ -715,6 +762,34 @@ function stepPlant(x,y,p){
     if(dropCandidates.length){
       const[sx,sy]=dropCandidates[Math.floor(Math.random()*dropCandidates.length)];
       grid[idx(sx,sy)]={t:T.SEED,age:0,g:[...p.g],sid:p.sid,energy:100};
+    }
+  }
+  // Petrification: old INTERIOR plants slowly harden into wood (trunks/branches).
+  // Canopy plants (anything with an empty neighbor) are exempt — only fully-enclosed
+  // plants can petrify, and petrification must spread from existing wood.
+  // Gates: age > 1200, 0 empty neighbors, ≥1 wood neighbor, all non-empty neighbors
+  // are plant/plant_wall/wood (so we don't turn plants bordering sand/stone into wood).
+  if(p.age>1200&&Math.random()<0.0008){
+    let emptyNbrs=0, woodNbrs=0, plantOrWoodNbrs=0, otherNbrs=0;
+    for(const[nx,ny] of nbrs){
+      const np=get(nx,ny);
+      if(!np){ emptyNbrs++; continue; }
+      if(np.t===T.WOOD){ woodNbrs++; plantOrWoodNbrs++; }
+      else if(np.t===T.PLANT||np.t===T.PLANT_WALL){ plantOrWoodNbrs++; }
+      else { otherNbrs++; }
+    }
+    // Normal case: petrification spreads from existing wood into fully-enclosed plants
+    if(emptyNbrs===0&&woodNbrs>=1&&plantOrWoodNbrs>=6&&otherNbrs<=2){
+      popDecr(p);
+      grid[idx(x,y)]={t:T.WOOD,age:0,hp:200};
+      return;
+    }
+    // Rare seed case: very old, very deep interior plant (no wood nearby) can
+    // spontaneously start a trunk. 4× rarer than spread; needs full enclosure.
+    if(p.age>2500&&emptyNbrs===0&&plantOrWoodNbrs>=7&&otherNbrs===0&&Math.random()<0.25){
+      popDecr(p);
+      grid[idx(x,y)]={t:T.WOOD,age:0,hp:200};
+      return;
     }
   }
   if(p.growTimer===undefined)p.growTimer=Math.floor(8+Math.random()*12); // start fast
@@ -1283,6 +1358,8 @@ function stepSpider(x,y,p){
     const on=nbrs.filter(([nx,ny])=>!get(nx,ny));
     if(on.length){const[nx,ny]=on[Math.floor(Math.random()*on.length)];set(nx,ny,spawnWithSpeciation(T.SPIDER,p.g,p.sid,p.variant,{energy:80}));popIncr({t:T.SPIDER,sid:p.sid});p.energy-=80;}
   }
+  // Workers tithe to adjacent queen spider (unified queen model)
+  if(p.energy>160){for(const[nx,ny] of getNeighbors(x,y)){const np=get(nx,ny);if(np?.t===T.QUEEN_SPIDER&&p.energy>80){np.energy=Math.min(255,np.energy+20);p.energy-=15;break;}}}
 }
 
 // ================================================================
@@ -1305,6 +1382,8 @@ function stepFungi(x,y,p){
     if(np.t===T.SALT){p.hp-=40;if(p.hp<=0){creatureCorpse(x,y);popDecr(p);return;}}
     if(np.t===T.LAVA||np.t===T.ACID){p.hp-=50;if(p.hp<=0){creatureCorpse(x,y,np.t===T.LAVA);popDecr(p);return;}}
     if(np.t===T.WOOD&&Math.random()<spreadSpeed*0.008){grid[idx(nx,ny)]=abiotic(T.DETRITUS);p.energy=Math.min(255,p.energy+15);}
+    // Decomposer loop: fungi convert detritus directly into energy (closes the nutrient cycle)
+    if(np.t===T.DETRITUS&&Math.random()<spreadSpeed*0.012){grid[idx(nx,ny)]=null;p.energy=Math.min(255,p.energy+8);}
     if((np.t===T.SPIDER)&&Math.random()<p.g[2]/255*0.08){
       const drain=8+Math.floor(p.g[2]/255*12);np.energy=Math.max(0,np.energy-drain);np.hp-=3;p.energy+=drain*0.7;
       if(np.hp<=0){
@@ -1457,12 +1536,12 @@ function stepWasp(x,y,p){
     if(np?.t===T.SPIDER){
       const hiveBonus=nearQueen?1.5:1;
       const dmg=Math.floor((12+aggression*28)*hiveBonus)*(mvt.includes('fighter')?2:1);
-      np.hp-=dmg; p.energy+=18;
+      np.hp-=dmg; p.energy+=12;
       if(np.hp<=0){
-        creatureCorpse(nx,ny);popDecr(np);p.energy+=12;
-        // Spider kill gives a strong shot at queen promotion — kills are rare & costly.
+        creatureCorpse(nx,ny);popDecr(np);p.energy+=8;
+        // Spider kill gives a chance at queen promotion — kills are rare & costly.
         // If promotion consumed this wasp (in-place transform), exit the step entirely.
-        if(Math.random()<0.35&&tryQueenPromote()&&grid[idx(x,y)]?.t===T.QUEEN_WASP)return;
+        if(Math.random()<0.15&&tryQueenPromote()&&grid[idx(x,y)]?.t===T.QUEEN_WASP)return;
       }
       break;
     }
@@ -1500,6 +1579,8 @@ function stepWasp(x,y,p){
     const nbrs2=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
     if(nbrs2.length){const[nx,ny]=nbrs2[Math.floor(Math.random()*nbrs2.length)];set(nx,ny,spawnWithSpeciation(T.WASP,p.g,p.sid,p.variant,{energy:80}));popIncr({t:T.WASP,sid:p.sid});p.energy-=60;}
   }
+  // Workers tithe to adjacent queen wasp (unified queen model)
+  if(p.energy>160){for(const[nx,ny] of getNeighbors(x,y)){const np=get(nx,ny);if(np?.t===T.QUEEN_WASP&&p.energy>80){np.energy=Math.min(255,np.energy+20);p.energy-=15;break;}}}
 }
 
 // ================================================================
@@ -1508,7 +1589,10 @@ function stepWasp(x,y,p){
 function stepQueenWasp(x,y,p){
   p.age++;
   const lv=lightGrid[idx(x,y)];
-  p.energy=Math.min(255,p.energy+lv*2+0.4);
+  // Unified queen model: low solar trickle + drain, depends on worker tithe
+  p.energy=Math.min(255,p.energy+lv*0.3+0.1);
+  p.energy-=0.15;
+  if(p.energy<=0){p.hp-=2;}
   if(p.hp<=0){queenCorpse(x,y);popDecr(p);return;}
   const spawnRate=20+Math.floor((1-p.g[5]/255)*80);
   if(p.age%spawnRate===0&&POP[T.WASP]<POP_MAX[T.WASP]){
@@ -1635,26 +1719,36 @@ function stepFrogstone(x,y,p){
 function stepQueenSpider(x,y,p){
   p.age++;
   const lv=lightGrid[idx(x,y)];
-  p.energy=Math.min(255,p.energy+lv*2+0.4);
+  // Unified queen model: low solar trickle + drain, depends on worker tithe
+  p.energy=Math.min(255,p.energy+lv*0.3+0.1);
+  p.energy-=0.15;
+  if(p.energy<=0){p.hp-=2;}
   if(p.hp<=0){queenCorpse(x,y);popDecr(p);return;}
 
-  const spawnRate=12+Math.floor((1-p.g[5]/255)*40);
+  const spawnRate=20+Math.floor((1-p.g[5]/255)*80);
   if(p.age%spawnRate===0&&POP[T.SPIDER]<POP_MAX[T.SPIDER]){
-    const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
-    if(nbrs.length){
-      const[nx,ny]=nbrs[Math.floor(Math.random()*nbrs.length)];
+    // Spawn into empty OR web cells — spiders naturally inhabit their own webs.
+    // (Without this, the queen's own web ring blocks every spawn point.)
+    const spawnCells=getNeighbors(x,y).filter(([nx,ny])=>{
+      const c=get(nx,ny);return !c||c.t===T.WEB;
+    });
+    if(spawnCells.length){
+      const[nx,ny]=spawnCells[Math.floor(Math.random()*spawnCells.length)];
       set(nx,ny,spawnWithSpeciation(T.SPIDER,p.g,p.sid,p.variant,{energy:120}));
       popIncr({t:T.SPIDER,sid:p.sid});
     }
   }
-  // Lay web around queen to build starter territory for workers
+  // Lay web around queen to build starter territory for workers.
+  // Reserve at least one empty neighbor as a fallback spawn point so the queen
+  // doesn't lock herself into a web ring with nowhere for new workers to appear.
   if(p.age%12===0&&Math.random()<0.7){
-    const nbrs=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
-    if(nbrs.length){
-      // Lay up to 2 web cells at once to seed a growing network
-      const count=Math.min(2,nbrs.length);
-      for(let i=0;i<count;i++){
-        const[wx,wy]=nbrs[Math.floor(Math.random()*nbrs.length)];
+    const empties=getNeighbors(x,y).filter(([nx,ny])=>!get(nx,ny));
+    if(empties.length>=2){
+      // Lay up to 2 web cells, but leave at least one empty neighbor behind
+      const maxLay=Math.min(2,empties.length-1);
+      for(let i=0;i<maxLay;i++){
+        const idx2=Math.floor(Math.random()*empties.length);
+        const[wx,wy]=empties.splice(idx2,1)[0];
         grid[idx(wx,wy)]={t:T.WEB,age:0,ttl:500+Math.floor(Math.random()*200)};
       }
     }
@@ -1682,7 +1776,7 @@ function stepLava(x,y,p){
     const np=get(nx,ny);if(!np)continue;
     if(np.t===T.WATER){grid[idx(x,y)]={t:T.STONE,age:0};grid[idx(nx,ny)]={t:T.STEAM,age:0,ttl:80};return;}
     if(np.t===T.ICE){grid[idx(nx,ny)]={t:T.WATER,age:0};continue;}
-    const fl={[T.WOOD]:0.9,[T.PLANT]:0.8,[T.FUNGI]:0.7,[T.OIL]:0.95,[T.DETRITUS]:0.5,[T.WEB]:0.9,[T.GUNPOWDER]:1.0}[np.t]??0;
+    const fl=getFlammability(np.t,true);
     if(fl>0&&Math.random()<fl*0.25){
       if(np.t===T.GUNPOWDER){
         for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){if(dx*dx+dy*dy<=16){const ex=nx+dx,ey=ny+dy;if(inB(ex,ey)&&!isImmovable(get(ex,ey)?.t))grid[idx(ex,ey)]=Math.random()<0.4?{t:T.FIRE,age:0,ttl:20}:null;}}
@@ -1711,8 +1805,14 @@ function stepSteam(x,y,p){
 
 function stepIce(x,y,p){
   p.ttl=(p.ttl||800)-1;
-  if(p.ttl<=0){grid[idx(x,y)]={t:T.WATER,age:0};return;}
-  for(const[nx,ny] of getNeighbors(x,y)){const np=get(nx,ny);if(np?.t===T.FIRE||np?.t===T.LAVA||np?.t===T.STEAM){grid[idx(x,y)]={t:T.WATER,age:0};return;}}
+  // TTL expiry — uses MELTS_TO registry so we don't hardcode "ice → water"
+  if(p.ttl<=0){grid[idx(x,y)]={t:MELTS_TO[T.ICE]??T.WATER,age:0};return;}
+  for(const[nx,ny] of getNeighbors(x,y)){
+    const np=get(nx,ny);
+    if(np?.t===T.FIRE||np?.t===T.LAVA||np?.t===T.STEAM){
+      grid[idx(x,y)]={t:MELTS_TO[T.ICE]??T.WATER,age:0};return;
+    }
+  }
 }
 
 function stepSmoke(x,y,p){
@@ -1772,47 +1872,50 @@ function stepWood(x,y,p){
   // Fire vulnerability
   for(const[nx,ny] of getNeighbors(x,y)){const np=get(nx,ny);if((np?.t===T.FIRE||np?.t===T.LAVA)&&Math.random()<0.004){grid[idx(x,y)]={t:T.FIRE,age:0,ttl:80+Math.floor(Math.random()*80)};return;}}
 
-  // GROWTH — wood grows like a tree: upward trunk with heavy branching
-  // Needs to be rooted (adjacent to sand, detritus, gold_sand, or other wood)
+  // GROWTH — wood grows slowly as trunk + branches. Primary source of new wood
+  // is now plant petrification (in stepPlant), so stepWood growth is deliberately
+  // slow and restrictive to prevent wood from outpacing plants.
+  // Needs to be rooted (adjacent to sand, detritus, gold_sand, clay, or other wood)
   const nbrs=getNeighbors(x,y);
   const rooted=nbrs.some(([nx,ny])=>{const t=get(nx,ny)?.t;return t===T.SAND||t===T.GOLD_SAND||t===T.DETRITUS||t===T.WOOD||t===T.CLAY_HARD;});
   if(!rooted)return;
 
-  // Light helps but isn't required — wood grows slowly even in dim light
-  const lv=lightGrid[idx(x,y)];
-  const lightBoost=lv>0.2?2:1; // grows faster in sunlight
-
-  // Growth timer
-  if(p.growTimer===undefined)p.growTimer=Math.floor(15+Math.random()*20);
-  p.growTimer-=lightBoost;
-  if(p.growTimer>0)return;
-  p.growTimer=Math.floor(15+Math.random()*25);
-
   // Count nearby wood to limit density (don't fill entire screen)
   let woodCount=0;
   for(const[nx,ny] of nbrs){if(get(nx,ny)?.t===T.WOOD)woodCount++;}
-  if(woodCount>=5)return; // too dense, stop growing
+  if(woodCount>=3)return; // strict density cap — no wood balls
 
-  // Growth direction — trunk grows up, branches grow sideways with high probability
+  // Needs direct sunlight to grow at all (trunks reach the canopy)
+  const lv=lightGrid[idx(x,y)];
+  if(lv<0.2)return;
+
+  // Growth timer — ~3× slower than before
+  if(p.growTimer===undefined)p.growTimer=Math.floor(50+Math.random()*60);
+  p.growTimer-=1;
+  if(p.growTimer>0)return;
+  p.growTimer=Math.floor(60+Math.random()*80);
+
+  // Only a small chance per eligible tick — wood should creep, not sprawl
+  if(Math.random()>0.35)return;
+
+  // Growth direction — strongly prefer upward trunk, mild sideways branching
   const gx2=gv.x,gy2=gv.y;
   const candidates=[];
   // Upward (against gravity) — trunk
   const ux=x-gx2,uy=y-gy2;
-  if(inB(ux,uy)&&!get(ux,uy))candidates.push([ux,uy,4]); // trunk priority
+  if(inB(ux,uy)&&!get(ux,uy))candidates.push([ux,uy,6]); // dominant trunk priority
 
-  // Sideways — branches (heavy branching)
+  // Sideways — branches (moderate, not heavy)
   const perp=getPerp();
   for(const d of perp){
     const sx=x+d.x,sy=y+d.y;
-    if(inB(sx,sy)&&!get(sx,sy))candidates.push([sx,sy,3]); // strong branch tendency
-    // Diagonal up-sideways — angled branches
+    if(inB(sx,sy)&&!get(sx,sy))candidates.push([sx,sy,1.5]);
+    // Diagonal up-sideways — occasional angled branches
     const dx=x+d.x-gx2,dy=y+d.y-gy2;
-    if(inB(dx,dy)&&!get(dx,dy))candidates.push([dx,dy,2]);
+    if(inB(dx,dy)&&!get(dx,dy))candidates.push([dx,dy,1]);
   }
 
-  // Occasional downward branch (drooping)
-  const bx=x+gx2,by=y+gy2;
-  if(inB(bx,by)&&!get(bx,by)&&Math.random()<0.15)candidates.push([bx,by,1]);
+  // No downward growth — wood doesn't droop, keeps tree-like shape
 
   if(!candidates.length)return;
 
@@ -1822,7 +1925,7 @@ function stepWood(x,y,p){
   let chosen=candidates[candidates.length-1];
   for(const c of candidates){r-=c[2];if(r<=0){chosen=c;break;}}
 
-  grid[idx(chosen[0],chosen[1])]={t:T.WOOD,age:0,growTimer:Math.floor(20+Math.random()*30)};
+  grid[idx(chosen[0],chosen[1])]={t:T.WOOD,age:0,growTimer:Math.floor(60+Math.random()*80)};
 }
 
 function stepAsh(x,y,p){
@@ -2236,23 +2339,35 @@ function stepProgCloud(x,y,p){
   }
 }
 
-// Life Seed burst — scatter 1-3 random worker organisms around the drop point.
-// Workers only (no queens), no mutagen particle — life seed is pure spawning.
+// Life Seed burst — scatter a balanced mix of worker organisms around the drop point.
+// Guarantees at least one of each type per burst (plant, fungi, ant, spider, wasp,
+// termite, wood) plus a few random extras. Without this guarantee, random sampling
+// often misses wasps or termites, and solo spawns starve before the user sees them.
 function progCloudLifeSeedBurst(px,py){
   const seedTypes=[T.PLANT,T.FUNGI,T.ANT,T.SPIDER,T.WASP,T.TERMITE,T.WOOD];
-  const count=3+Math.floor(Math.random()*4);
-  for(let i=0;i<count;i++){
-    const ox=px+Math.floor((Math.random()-0.5)*6);
-    const oy=py+Math.floor((Math.random()-0.5)*6);
-    if(!inB(ox,oy)||get(ox,oy))continue;
-    const type=seedTypes[Math.floor(Math.random()*seedTypes.length)];
-    // Wood is inert terrain, not a genome agent — place directly.
-    if(type===T.WOOD){grid[idx(ox,oy)]={t:T.WOOD,age:0};continue;}
-    const g=randomGenome(type);
-    const s=registerStrain(type,g);
-    const cell=agentWithStrain(type,g,s,{energy:150});
-    grid[idx(ox,oy)]=cell;
-    popIncr(cell);
+
+  // Shuffle to pick a guaranteed-one-of-each order, then add a few random bonuses
+  const plan=[...seedTypes];
+  for(let i=plan.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[plan[i],plan[j]]=[plan[j],plan[i]];}
+  const extras=1+Math.floor(Math.random()*3);
+  for(let i=0;i<extras;i++) plan.push(seedTypes[Math.floor(Math.random()*seedTypes.length)]);
+
+  for(const type of plan){
+    // Try up to 6 positions for each organism so they don't fail on a single blocked cell
+    let placed=false;
+    for(let tries=0;tries<6&&!placed;tries++){
+      const ox=px+Math.floor((Math.random()-0.5)*10);
+      const oy=py+Math.floor((Math.random()-0.5)*10);
+      if(!inB(ox,oy)||get(ox,oy))continue;
+      // Wood is inert terrain, not a genome agent — place directly.
+      if(type===T.WOOD){grid[idx(ox,oy)]={t:T.WOOD,age:0};placed=true;break;}
+      const g=randomGenome(type);
+      const s=registerStrain(type,g);
+      const cell=agentWithStrain(type,g,s,{energy:180});
+      grid[idx(ox,oy)]=cell;
+      popIncr(cell);
+      placed=true;
+    }
   }
 }
 
@@ -2374,15 +2489,12 @@ function stepFire(x,y,p){
   if(inB(ux,uy)&&!get(ux,uy)&&Math.random()<0.3)
     grid[idx(ux,uy)]={t:T.FIRE,age:0,ttl:Math.floor(p.ttl*0.8)};
 
-  // Spread to ALL flammable neighbors
+  // Spread to ALL flammable neighbors — uses FLAMMABILITY registry so
+  // custom elements (Element Lab) participate without engine edits.
   for(const[nx,ny] of nbrs){
     const np=get(nx,ny);
     if(!np) continue;
-    const fl={
-      [T.OIL]:1.0,[T.WEB]:0.95,[T.PLANT]:0.85,[T.PLANT_WALL]:0.7,
-      [T.FUNGI]:0.8,[T.SPORE]:0.9,[T.WOOD]:0.5,[T.ASH]:0.1,
-      [T.GUNPOWDER]:1.0,[T.DETRITUS]:0.3,
-    }[np.t]??0;
+    const fl=getFlammability(np.t,false);
 
     if(np.t===T.WATER){grid[idx(x,y)]=null;return;}
     if(np.t===T.GUNPOWDER){
@@ -4461,11 +4573,12 @@ let boxDrawStart=null; // {gx,gy,px,py} grid + pixel coords of first corner
 
 function getStampMode(){ return _dom('stamp-sel').value; }
 
-function updateBoxPreview(sx,sy,ex,ey){
-  // sx,sy,ex,ey are pixel coords relative to canvas element
+function updateBoxPreview(gx1,gy1,gx2,gy2){
+  // Use grid coordinates × cell size (S) — preview is inside canvas-wrap which is
+  // CSS-scaled to fit, so buffer-pixel positions align with the rendered canvas.
   const preview=_dom('box-preview');
-  const x1=Math.min(sx,ex),y1=Math.min(sy,ey);
-  const x2=Math.max(sx,ex),y2=Math.max(sy,ey);
+  const x1=Math.min(gx1,gx2)*S, y1=Math.min(gy1,gy2)*S;
+  const x2=(Math.max(gx1,gx2)+1)*S, y2=(Math.max(gy1,gy2)+1)*S;
   preview.style.left=x1+'px'; preview.style.top=y1+'px';
   preview.style.width=(x2-x1)+'px'; preview.style.height=(y2-y1)+'px';
   preview.style.display='block';
@@ -4525,8 +4638,7 @@ const h={
     machineDrawnThisStroke=false;
     if(currentTool==='stamp'&&getStampMode()==='box_draw'){
       const[gx,gy]=canvasToGrid(e.clientX,e.clientY);
-      const[px,py]=clientToCanvasLocal(e.clientX,e.clientY);
-      boxDrawStart={gx,gy,px,py};
+      boxDrawStart={gx,gy};
       return;
     }
     drawAt(e.clientX,e.clientY);
@@ -4537,10 +4649,8 @@ const h={
       showObserveTooltip(e.clientX,e.clientY,get(gx,gy),gx,gy);
     }
     if(isDown&&currentTool==='stamp'&&getStampMode()==='box_draw'&&boxDrawStart){
-      const[px,py]=clientToCanvasLocal(e.clientX,e.clientY);
-      const rect=canvas.getBoundingClientRect();
-      const scaleX=rect.width/canvas.width, scaleY=rect.height/canvas.height;
-      updateBoxPreview(boxDrawStart.px*scaleX,boxDrawStart.py*scaleY,px*scaleX,py*scaleY);
+      const[gx,gy]=canvasToGrid(e.clientX,e.clientY);
+      updateBoxPreview(boxDrawStart.gx,boxDrawStart.gy,gx,gy);
       return;
     }
     // RNA patterns (glider/seed/bomb) are stamp-like — place on click only, not on drag
@@ -4570,8 +4680,7 @@ const h={
     machineDrawnThisStroke=false;
     if(currentTool==='stamp'&&getStampMode()==='box_draw'){
       const[gx,gy]=canvasToGrid(t.clientX,t.clientY);
-      const[px,py]=clientToCanvasLocal(t.clientX,t.clientY);
-      boxDrawStart={gx,gy,px,py};
+      boxDrawStart={gx,gy};
       return;
     }
     drawAt(t.clientX,t.clientY);
@@ -4581,10 +4690,8 @@ const h={
     if(!isDown)return;
     const t=e.touches[0];
     if(currentTool==='stamp'&&getStampMode()==='box_draw'&&boxDrawStart){
-      const[px,py]=clientToCanvasLocal(t.clientX,t.clientY);
-      const rect=canvas.getBoundingClientRect();
-      const scaleX=rect.width/canvas.width,scaleY=rect.height/canvas.height;
-      updateBoxPreview(boxDrawStart.px*scaleX,boxDrawStart.py*scaleY,px*scaleX,py*scaleY);
+      const[gx,gy]=canvasToGrid(t.clientX,t.clientY);
+      updateBoxPreview(boxDrawStart.gx,boxDrawStart.gy,gx,gy);
       return;
     }
     const _rnaElT=(currentEl==='rna1'||currentEl==='fractal1'||currentEl==='fractal2');
@@ -6810,7 +6917,7 @@ export function createEngine(canvasEl, stateCallback) {
   isDown=false; // reset draw state
 
   canvas = canvasEl;
-  ctx    = canvas.getContext('2d');
+  ctx    = canvas.getContext('2d', { willReadFrequently: true });
   wrap   = canvasEl; // canvas-wrap DOM queries are safe stubs
 
   _stateCallback = stateCallback || null;

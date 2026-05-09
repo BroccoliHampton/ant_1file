@@ -19,6 +19,8 @@ export const useSimStore = create((set, get) => ({
   hasBacteriaCells: false,
   menuOpen: false,
   setMenuOpen: (val) => set({ menuOpen: val }),
+  terraOpen: false,
+  setTerraOpen: (val) => set({ terraOpen: val }),
   startGoL:    () => get().engine?.startGoL(),
   stopGoL:     () => get().engine?.stopGoL(),
   stopBacteria:() => get().engine?.stopBacteria(),

@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Capacitor iOS — keep project config, ignore copied web assets and build artifacts
+ios/App/App/public
+ios/App/Pods
+ios/DerivedData
+ios/build

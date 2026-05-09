@@ -2,10 +2,12 @@ import { useSimStore } from '../store/simStore.js'
 
 export default function AppHeader({ theme, onToggleTheme }) {
   const setMenuOpen = useSimStore(s => s.setMenuOpen)
+  const setTerraOpen = useSimStore(s => s.setTerraOpen)
   return (
     <div id="app-header">
       <div id="header-logo">ALIEN <span>ANT</span> FARM</div>
       <div id="header-right">
+        <button id="terra-open-btn" className="hdr-btn" onClick={() => setTerraOpen(true)} title="Talk to Terra">🌱</button>
         <button id="theme-toggle" className="hdr-btn" onClick={onToggleTheme}>
           {theme === 'dark' ? '☀' : '🌙'}
         </button>
