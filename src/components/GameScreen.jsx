@@ -1,10 +1,9 @@
-import AppHeader from './AppHeader.jsx'
-import StatsStrip from './StatsStrip.jsx'
+import StatusRibbon from './StatusRibbon.jsx'
 import CanvasZone from './CanvasZone.jsx'
-import DeviceGrip from './DeviceGrip.jsx'
 import Toolbar from './Toolbar/index.jsx'
 import MenuDrawer from './MenuDrawer.jsx'
 import TerraChat from './TerraChat.jsx'
+import TerraFab from './TerraFab.jsx'
 import ElementLab from './ElementLab.jsx'
 import { useSimStore } from '../store/simStore.js'
 import { useEffect } from 'react'
@@ -46,12 +45,11 @@ export default function GameScreen({ theme, onToggleTheme }) {
       <div id="lab-popup"><div id="lab-panel"></div></div>
       <div id="held-panel" style={{display:'none'}}><div id="held-info"/></div>
 
-      <AppHeader onToggleTheme={onToggleTheme} theme={theme} />
-      <StatsStrip />
+      <StatusRibbon theme={theme} onToggleTheme={onToggleTheme} />
       <CanvasZone />
-      <DeviceGrip />
       <Toolbar />
       <MenuDrawer />
+      <TerraFab />
       <TerraChat open={terraOpen} onClose={() => setTerraOpen(false)} />
       <ElementLab />
 
