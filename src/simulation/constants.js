@@ -47,6 +47,9 @@ export const T = {
   // Visual fractal elements (placed as single stamps, decay via TTL)
   FRACTAL:84,         // Sierpinski rule-90 triangle, rainbow rows
   JULIA:85,           // Cyclic Cellular Automaton (CCA) — spiraling color patterns
+  // Custom Element Lab parent type — all user-defined elements share this
+  // type and are discriminated by p.customElem (numeric definition id).
+  CUSTOM_ELEMENT:90,
   // Custom lab creatures start here
   CUSTOM_BASE:100,
 };
@@ -128,6 +131,9 @@ export const ELEMENTS = [
   // Visual fractal stamps
   {cat:'special', key:'fractal1',   label:'SIERP',       col:'#dd44ff', tag:'🔺'},
   {cat:'special', key:'fractal2',   label:'CCA',         col:'#00ccff', tag:'🌀'},
+  // Element Lab — hardcoded Phase-1 test elements
+  {cat:'special', key:'customelem_1', label:'GOO',       col:'#52d44e', tag:'🟢'},
+  {cat:'special', key:'customelem_2', label:'GLOWMOSS',  col:'#66ffe5', tag:'✨'},
   // special
   {cat:'special', key:'mutagen',    label:'LIFE SEED',   col:'#cc00ee', tag:'⚛'},
   {cat:'special', key:'chromadust', label:'CHROMADUST',  col:'#cc88ff', tag:'✨'},

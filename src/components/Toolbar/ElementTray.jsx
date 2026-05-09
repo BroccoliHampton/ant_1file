@@ -3,7 +3,7 @@ import { ELEMENTS } from '../../simulation/constants.js'
 const MOBILE_CATS = {
   terrain: ['jelly','sand','clay','stone','ice','goldSand','whiteSand','salt','water','acid','oil','ash','smoke','steam','gunpowder','wall','fire','lava'],
   life:    ['worm','wood','ant','queen','spider','queenSpider','termite','queenTermite','wasp','queenWasp','plant','seed','detritus','fungi','spore'],
-  special: ['machine','bacteria','quark','rna1','fractal1','fractal2','mutagen','chromadust','cloud','bloomCloud','progCloud','progVoid'],
+  special: ['machine','bacteria','quark','rna1','fractal1','fractal2','customelem_1','customelem_2','mutagen','chromadust','cloud','bloomCloud','progCloud','progVoid'],
   rx:      ['lucid','crank','flaca'],
 }
 

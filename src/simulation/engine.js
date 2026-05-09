@@ -220,11 +220,12 @@ function getDens(p){
   return DENSITY[p.t]??2;
 }
 
-// Element Lab registry (Phase 0 stub — populated when Element Lab ships).
-// Keys: numeric custom element IDs. Values: definition objects with traits,
-// hue, density, flammability, etc. The stub is initialized empty so all the
-// extension hooks (getDens, getFlammability, getColor) are safe to call.
+// Element Lab registry. Keys: numeric custom element IDs. Values: definition
+// objects with traits, hue, density, flammability, etc. Populated by
+// registerCustomElement() at module init (test elements) and at user
+// save-time once the Element Lab UI ships.
 const customElementDefs = new Map();
+let nextCustomElementId = 1; // user-saved IDs start at 1; Phase-1 tests use 1 and 2
 
 // ================================================================
 //  GENOME SYSTEM — kingdom-specific genes
@@ -2630,6 +2631,120 @@ function stepClay(x,y,p){
 }
 
 // ================================================================
+//  ELEMENT LAB — custom element runtime
+//  All user-defined elements share T.CUSTOM_ELEMENT and are discriminated
+//  by p.customElem (numeric id). Each definition in customElementDefs has
+//  a list of traits; stepCustomElement runs each trait's handler per tick.
+//  Save-time hooks (registerCustomElement) plug definitions into the global
+//  FLAMMABILITY/DENSITY tables so the rest of the engine treats them as
+//  first-class elements without any further special casing.
+// ================================================================
+
+// Trait handler registry. Each handler receives (x,y,p,params,def) and either
+// performs an action (move/transform/emit) or schedules state. Handlers can
+// short-circuit subsequent traits by returning the literal value 'STOP'.
+const TRAIT_HANDLERS = {
+  // FALLS — gravity-driven falling, sand-style. params.density (1..10)
+  falls(x,y,p,params){
+    const bx=x+gv.x, by=y+gv.y;
+    if(!inB(bx,by)) return;
+    const below=grid[idx(bx,by)];
+    const myD=params.density??3;
+    if(!below){ swap(x,y,bx,by); return 'STOP'; }
+    if(getDens(below) < myD - 0.5){ swap(x,y,bx,by); return 'STOP'; }
+  },
+
+  // FLOWS — sideways spread when can't fall, water-style. params.viscosity (1..5)
+  // viscosity 1 = thin (high spread), viscosity 5 = thick (low spread)
+  flows(x,y,p,params){
+    const visc=params.viscosity??2;
+    const spreadChance=Math.max(0.05, 1.0 - visc*0.18); // 0.82 thin → 0.10 thick
+    if(Math.random()>spreadChance) return;
+    const perp=getPerp();
+    const dirs=[perp[0], perp[1]];
+    if(Math.random()<0.5) dirs.reverse();
+    for(const d of dirs){
+      const sx=x+d.x, sy=y+d.y;
+      if(!inB(sx,sy)) continue;
+      const target=grid[idx(sx,sy)];
+      if(!target){ swap(x,y,sx,sy); return 'STOP'; }
+    }
+  },
+
+  // BURNS — when adjacent to fire/lava, has chance to ignite (turn into FIRE).
+  // The FLAMMABILITY table is also populated at registration time so that
+  // stepFire/stepLava can target this element symmetrically.
+  // params.flammability (0..1) · params.burnsInto (T.ASH | T.SMOKE | null)
+  burns(x,y,p,params){
+    const fl=params.flammability??0.5;
+    if(Math.random()>fl*0.4) return; // damp the per-tick check
+    for(const[nx,ny] of getNeighbors(x,y)){
+      const np=grid[idx(nx,ny)];
+      if(np?.t===T.FIRE||np?.t===T.LAVA){
+        // Replace this cell with fire; burnsInto controls residue when fire decays
+        const ttl=40+Math.floor(Math.random()*40);
+        grid[idx(x,y)]={t:T.FIRE,age:0,ttl,burnsInto:params.burnsInto};
+        return 'STOP';
+      }
+    }
+  },
+
+  // GLOWS — radiates light into the lightGrid. params.brightness (0..1)
+  glows(x,y,p,params){
+    const b=params.brightness??0.5;
+    const r=Math.max(1,Math.min(4,Math.round(1+b*3)));
+    for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+      const lx=x+dx, ly=y+dy;
+      if(!inB(lx,ly)) continue;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist>r) continue;
+      const fall=1-(dist/r);
+      const li=idx(lx,ly);
+      lightGrid[li]=Math.min(1, lightGrid[li] + b*fall*0.4);
+    }
+  },
+
+  // DECAYS — TTL countdown, then transform. params.ttl (initial), params.decaysInto (target type or null)
+  decays(x,y,p,params){
+    if(p.ttl===undefined) p.ttl=params.ttl??1000;
+    p.ttl--;
+    if(p.ttl<=0){
+      const target=params.decaysInto;
+      if(target==null||target===T.EMPTY){ grid[idx(x,y)]=null; }
+      else { grid[idx(x,y)]={t:target,age:0}; }
+      return 'STOP';
+    }
+  },
+};
+
+function stepCustomElement(x,y,p){
+  const def=customElementDefs.get(p.customElem);
+  if(!def){ grid[idx(x,y)]=null; return; } // orphaned cell — definition gone
+  const traits=def.traits||[];
+  for(const trait of traits){
+    const handler=TRAIT_HANDLERS[trait.id];
+    if(!handler) continue;
+    if(handler(x,y,p,trait.params||{},def)==='STOP') return;
+  }
+}
+
+// Register a custom element definition. Plugs into engine-level tables so
+// stepFire / stepLava / getDens treat the element symmetrically without code
+// edits in those step functions.
+function registerCustomElement(def){
+  customElementDefs.set(def.id, def);
+  for(const trait of def.traits||[]){
+    if(trait.id==='burns'){
+      // Map "this element catches fire" to the global FLAMMABILITY table.
+      // Keyed by composite (T.CUSTOM_ELEMENT * 10000 + def.id) so customs
+      // never collide with built-in T.* numeric IDs.
+      const key=T.CUSTOM_ELEMENT*10000+def.id;
+      FLAMMABILITY[key]=trait.params?.flammability??0.5;
+    }
+  }
+}
+
+// ================================================================
 //  MAIN STEP DISPATCH
 // ================================================================
 function stepParticle(x,y){
@@ -2653,6 +2768,8 @@ function stepParticle(x,y){
 
   // Custom lab creatures
   if(p.t===T.CUSTOM_BASE){stepCustom(x,y,p);return;}
+  // Custom lab elements — Element Lab (Phase 1)
+  if(p.t===T.CUSTOM_ELEMENT){stepCustomElement(x,y,p);return;}
 
   // Special mechanical/environmental objects
   if(p.t===T.CLOUD){stepCloud(x,y,p);return;}
@@ -2702,7 +2819,7 @@ function stepParticle(x,y){
       &&p.t!==T.WOOD&&p.t!==T.ASH&&p.t!==T.ACID&&p.t!==T.GUNPOWDER
       &&p.t!==T.SALT&&p.t!==T.STONE&&p.t!==T.CLOUD&&p.t!==T.BLOOM_CLOUD&&p.t!==T.BLOOM_FIRE
       &&p.t!==T.PROG_CLOUD&&p.t!==T.WEATHER_STATION&&p.t!==T.PROG_VOID
-      &&p.t!==T.JELLY){
+      &&p.t!==T.JELLY&&p.t!==T.CUSTOM_ELEMENT){
     if(p.t===T.WATER||p.t===T.OIL)tryFlow(x,y);
     else if(p.t===T.CLAY) stepClay(x,y,p);
     else tryFall(x,y,p);
@@ -2866,6 +2983,21 @@ function getColor(p,x,y){
       if((def.specials||[]).some(s=>s.id==='bioluminescent')&&lv<0.2)lit+=25;
       if(p.isQueen)lit+=12;
       const[cr,cg,cb]=hslToRgb(def.hue,def.sat,lit);
+      return 0xFF000000|(cb<<16)|(cg<<8)|cr;
+    }
+  }
+  // Custom lab elements — Element Lab (Phase 1)
+  if(p.t===T.CUSTOM_ELEMENT&&p.customElem!==undefined){
+    const def=customElementDefs.get(p.customElem);
+    if(def){
+      const lv=lightGrid[idx(x,y)];
+      // Glowing elements look brighter in the dark; non-glowing follow ambient light
+      let lit=(def.lit??45)+lv*12;
+      const glowTrait=(def.traits||[]).find(t=>t.id==='glows');
+      if(glowTrait) lit+=Math.min(35,(glowTrait.params?.brightness??0.5)*45);
+      // Slight per-cell jitter so areas don't look painted-flat
+      lit+=Math.floor((Math.random()-0.5)*4);
+      const[cr,cg,cb]=hslToRgb(def.hue??200, def.sat??70, Math.max(5,Math.min(95,lit)));
       return 0xFF000000|(cb<<16)|(cg<<8)|cr;
     }
   }
@@ -4546,8 +4678,15 @@ function drawAt(cx,cy){
           break;
         }
         default:{
+          // Custom lab elements (Element Lab — Phase 1)
+          if(currentEl.startsWith('customelem_')){
+            const id=parseInt(currentEl.split('_')[1]);
+            if(customElementDefs.has(id)){
+              grid[idx(px,py)]={t:T.CUSTOM_ELEMENT,customElem:id,age:0};
+            }
+          }
           // Custom lab creatures
-          if(currentEl.startsWith('customqueen_')){
+          else if(currentEl.startsWith('customqueen_')){
             const id=parseInt(currentEl.split('_')[1]);
             if(customCreatures.has(id)){
               const c=spawnCustomCell(id,px,py,true);
@@ -6906,6 +7045,33 @@ window.toggleIconPicker=toggleIconPicker;
 window.selectLabIcon=selectLabIcon;
 
 buildOrder();
+
+// ─── Element Lab — Phase 1 hardcoded test elements ────────────────
+// These prove the runtime works before the Lab UI ships. The brush key
+// 'customelem_<id>' lets the user paint them from the toolbar. Once the
+// Element Lab UI is built, these become regular saved entries.
+registerCustomElement({
+  id: 1,
+  name: 'Goo',
+  hue: 130, sat: 70, lit: 38,
+  density: 1.5,
+  traits: [
+    { id: 'falls',  params: { density: 1.5 } },
+    { id: 'flows',  params: { viscosity: 3 } },
+    { id: 'burns',  params: { flammability: 0.8, burnsInto: T.ASH } },
+  ],
+});
+registerCustomElement({
+  id: 2,
+  name: 'Glowmoss',
+  hue: 165, sat: 85, lit: 55,
+  density: 4,
+  traits: [
+    { id: 'glows',  params: { brightness: 0.7 } },
+    { id: 'decays', params: { ttl: 1500, decaysInto: T.DETRITUS } },
+  ],
+});
+nextCustomElementId = 3; // user saves start here
 
 // ─── createEngine export ─────────────────────────────────────────
 export function createEngine(canvasEl, stateCallback) {
