@@ -2689,10 +2689,11 @@ const TRAIT_HANDLERS = {
     }
   },
 
-  // GLOWS — radiates light into the lightGrid. params.brightness (0..1)
+  // GLOWS — radiates light into the lightGrid. Surrounding cells brighten
+  // visibly in dark areas, creating a halo effect. params.brightness (0..1)
   glows(x,y,p,params){
     const b=params.brightness??0.5;
-    const r=Math.max(1,Math.min(4,Math.round(1+b*3)));
+    const r=Math.max(2,Math.min(6,Math.round(2+b*4))); // 2..6 cell radius
     for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
       const lx=x+dx, ly=y+dy;
       if(!inB(lx,ly)) continue;
@@ -2700,7 +2701,9 @@ const TRAIT_HANDLERS = {
       if(dist>r) continue;
       const fall=1-(dist/r);
       const li=idx(lx,ly);
-      lightGrid[li]=Math.min(1, lightGrid[li] + b*fall*0.4);
+      // Strong contribution at center, soft halo at edges. 0.85 cap so we
+      // don't completely wash out the lighting model.
+      lightGrid[li]=Math.min(0.95, lightGrid[li] + b*fall*0.7);
     }
   },
 
@@ -2991,13 +2994,22 @@ function getColor(p,x,y){
     const def=customElementDefs.get(p.customElem);
     if(def){
       const lv=lightGrid[idx(x,y)];
-      // Glowing elements look brighter in the dark; non-glowing follow ambient light
-      let lit=(def.lit??45)+lv*12;
+      // Base color from def, ambient contribution from light grid
+      let lit=(def.lit??45)+lv*8;
+      // Glow trait makes the cell *pop in the dark* — boost is inversely
+      // proportional to ambient light, so glow only shows when surroundings
+      // are dim. Capped so the color never washes out to white.
       const glowTrait=(def.traits||[]).find(t=>t.id==='glows');
-      if(glowTrait) lit+=Math.min(35,(glowTrait.params?.brightness??0.5)*45);
+      if(glowTrait){
+        const b=glowTrait.params?.brightness??0.5;
+        const darkBoost=(1-Math.min(1,lv))*b*22; // up to ~22% in pitch black
+        lit+=darkBoost;
+      }
       // Slight per-cell jitter so areas don't look painted-flat
-      lit+=Math.floor((Math.random()-0.5)*4);
-      const[cr,cg,cb]=hslToRgb(def.hue??200, def.sat??70, Math.max(5,Math.min(95,lit)));
+      lit+=Math.floor((Math.random()-0.5)*3);
+      // Hard cap below white so the hue stays visible — 78 keeps strong color
+      lit=Math.max(8,Math.min(78,lit));
+      const[cr,cg,cb]=hslToRgb(def.hue??200, def.sat??70, lit);
       return 0xFF000000|(cb<<16)|(cg<<8)|cr;
     }
   }
@@ -7064,10 +7076,10 @@ registerCustomElement({
 registerCustomElement({
   id: 2,
   name: 'Glowmoss',
-  hue: 165, sat: 85, lit: 55,
+  hue: 165, sat: 90, lit: 42,
   density: 4,
   traits: [
-    { id: 'glows',  params: { brightness: 0.7 } },
+    { id: 'glows',  params: { brightness: 0.85 } },
     { id: 'decays', params: { ttl: 1500, decaysInto: T.DETRITUS } },
   ],
 });

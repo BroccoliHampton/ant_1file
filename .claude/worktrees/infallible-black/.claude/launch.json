@@ -3,10 +3,9 @@
   "configurations": [
     {
       "name": "react-app",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5173,
-      "autoPort": true
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "cd /Users/brockhamford/Documents/ant_1file && /usr/local/bin/node node_modules/.bin/vite --port 5173 --strictPort"],
+      "port": 5173
     }
   ]
 }
