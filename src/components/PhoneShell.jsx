@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import GameScreen from './GameScreen.jsx'
+import UltraficheShowcase from './UltraficheShowcase.jsx'
 
 export default function PhoneShell() {
   const [time, setTime] = useState(() => {
@@ -7,6 +8,19 @@ export default function PhoneShell() {
     return `${n.getHours()}:${String(n.getMinutes()).padStart(2,'0')}`
   })
   const [theme, setTheme] = useState(() => localStorage.getItem('aaTheme') || 'dark')
+
+  // Ultrafiche brand showcase — load via ?ufshow=1 in the URL.
+  // Lets us preview chrome/rainbow/neon utilities without modifying real UI.
+  const [showcase, setShowcase] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return new URLSearchParams(window.location.search).get('ufshow') === '1'
+  })
+  function closeShowcase() {
+    setShowcase(false)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('ufshow')
+    window.history.replaceState(null, '', url.toString())
+  }
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -45,7 +59,9 @@ export default function PhoneShell() {
             </div>
           </div>
         </div>
-        <GameScreen theme={theme} onToggleTheme={toggleTheme} />
+        {showcase
+          ? <UltraficheShowcase onClose={closeShowcase} />
+          : <GameScreen theme={theme} onToggleTheme={toggleTheme} />}
         <div id="home-indicator"><div id="home-bar" /></div>
       </div>
     </div>
