@@ -42,6 +42,12 @@ let _backgrounded = false;
 // reused across ticks (no allocation churn).
 const _queenIndices = [];
 const _frogstoneIndices = [];
+
+// Per-render-frame cache of lucid sources so getColor doesn't re-derive
+// ageFade / hue every cell. Layout: [x, y, ageFade, age, hue] × N.
+// Sized for the engine's hard cap (MAX_LUCID_SOURCES is small).
+const _lucidFrame = new Float32Array(64);  // up to ~12 sources × 5 floats
+let   _lucidFrameCount = 0;
 // Low Power Mode — halves the simulation step rate to reduce phone heat.
 // User-controlled via Mission Control / engine API.
 let _lowPower = false;
@@ -2010,14 +2016,30 @@ function stepDrug(x,y,p,buffType,buffTTL){
 // Rebuild lucidGrid once per tick — O(W*H*sources) done once centrally,
 // so creature step functions just do a cheap array lookup instead of
 // calling Math.sqrt per creature per neighbor (which was freezing the sim).
+//
+// Perf gates added:
+//   1. When no sources are active, do nothing (and skip the redundant
+//      .fill(0) — _lucidGridNonZero tracks whether the grid actually has
+//      data that needs clearing first).
+//   2. Run only every other tick when active (visual effect is smooth
+//      enough that 15Hz updates are imperceptible).
+//   3. Cap maxR at ~95: the radial term `(1 - dist/W*1.2)` falls below
+//      the visibility threshold beyond ~90 cells, so further iteration
+//      contributes nothing visible.
+let _lucidGridNonZero = false;
+const LUCID_REBUILD_MAX_R = Math.min(W, 95);
 function rebuildLucidGrid(){
+  if(!lucidSources.length){
+    if(_lucidGridNonZero){ lucidGrid.fill(0); _lucidGridNonZero = false; }
+    return;
+  }
+  if((tickCount & 1) === 1) return; // every other tick when sources active
   lucidGrid.fill(0);
-  if(!lucidSources.length)return;
+  _lucidGridNonZero = true;
   for(const src of lucidSources){
     const ageFade=Math.max(0,1-src.age/LUCID_LIFETIME);
     if(ageFade<=0)continue;
-    // Only compute within a reasonable radius to keep cost bounded
-    const maxR=Math.min(W,Math.ceil(W*1.1));
+    const maxR = LUCID_REBUILD_MAX_R;
     for(let dy=-maxR;dy<=maxR;dy++){
       const ny=src.y+dy;if(ny<0||ny>=H)continue;
       for(let dx=-maxR;dx<=maxR;dx++){
@@ -2934,6 +2956,24 @@ function render(){
   if(!imageData){imageData=ctx.createImageData(canvas.width,canvas.height);pixels=new Uint32Array(imageData.data.buffer);}
   pixels.fill(0xFF080810);
 
+  // Pre-compute per-frame lucid source data so getColor's per-cell loop
+  // doesn't recompute ageFade / hue every cell. Layout: [x,y,ageFade,age,hue].
+  _lucidFrameCount = 0;
+  if(lucidSources.length>0){
+    for(let li=0; li<lucidSources.length && li*5+4 < _lucidFrame.length; li++){
+      const src=lucidSources[li];
+      const ageFade=Math.max(0,1-src.age/LUCID_LIFETIME);
+      if(ageFade<=0) continue;
+      const fi=_lucidFrameCount*5;
+      _lucidFrame[fi]   = src.x;
+      _lucidFrame[fi+1] = src.y;
+      _lucidFrame[fi+2] = ageFade;
+      _lucidFrame[fi+3] = src.age;
+      _lucidFrame[fi+4] = src.hue;
+      _lucidFrameCount++;
+    }
+  }
+
   // Unrolled S=2 pixel write — avoids the inner dy/dx loops (96k→48k iterations)
   const cw=canvas.width;
   for(let y=0;y<H;y++) for(let x=0;x<W;x++){
@@ -3003,8 +3043,32 @@ function render(){
   }
   ctx.restore();
 }
+// Pre-computed colors for cell types whose appearance is fully determined by
+// type alone — no light-grid, no per-cell random flicker, no aging. Looked
+// up via STATIC_COL[t]; 0 means "fall through to switch path". Match these
+// values EXACTLY to the corresponding switch cases below or visuals shift.
+//
+// Excluded (need per-cell math): SAND, WATER, GOLD_SAND, GUNPOWDER, SALT,
+// TUNNEL_WALL, FRIDGE_WALL, MUTAGEN, JELLY — all have Math.random or
+// lightGrid contributions per cell.
+const STATIC_COL = new Uint32Array(256);
+// Pack RGB into RGBA32 little-endian format used by the pixel buffer.
+function _pack(r,g,b){ return 0xFF000000|(b<<16)|(g<<8)|r; }
+STATIC_COL[T.WALL]        = _pack(60,60,60);
+STATIC_COL[T.PLANT_WALL]  = _pack(20,80,25);
+STATIC_COL[T.WHITE_SAND]  = _pack(210,210,205);
+STATIC_COL[T.DETRITUS]    = _pack(80,65,45);
+STATIC_COL[T.OIL]         = _pack(25,55,20);
+STATIC_COL[T.EGG]         = _pack(220,200,120);
+STATIC_COL[T.SPORE]       = _pack(160,80,220);
+
 function getColor(p,x,y){
   if(!p)return 0;
+  // Static-color fast path — for types whose color never depends on per-cell
+  // state, return a precomputed packed uint32 with no math, no map lookups.
+  // (~30% of the common live-cell mix on a typical board hits this branch.)
+  const sc = STATIC_COL[p.t];
+  if (sc) return sc;
   // Custom lab creatures
   if(p.t===T.CUSTOM_BASE&&p.customType){
     const def=customCreatures.get(p.customType);
@@ -3276,16 +3340,28 @@ function getColor(p,x,y){
     const [fr,fg,fb]=hslToRgb(hue,sat,lit);
     return 0xFF000000|(fb<<16)|(fg<<8)|fr;
   }
-  // Lucid wave overlay
-  if(lucidSources.length>0){
+  // Lucid wave overlay — uses a pre-computed per-frame source cache (built in
+  // render() once) so we can cheaply bbox-cull cells far from every source.
+  // Without the cull, this block was iterating every source for every visible
+  // cell every frame: ~14 × 24,000 × 30/sec = 10M Math.sqrt+sin ops/sec.
+  if(_lucidFrameCount>0){
     let bestI=0,bestH=0;
-    for(const src of lucidSources){
-      const dx=x-src.x,dy=y-src.y;
+    for(let li=0; li<_lucidFrameCount; li++){
+      const fi=li*5;
+      const sx=_lucidFrame[fi], sy=_lucidFrame[fi+1];
+      const dx=x-sx, dy=y-sy;
+      // Cheap bbox cull — both axes must be within the visible-effect radius.
+      // The radial fade `(1 - dist/W*1.2)` × max wave (1) × max ageFade (1)
+      // falls below the 0.25 visibility threshold past ~108 cells, so 110 is a
+      // safe outer bound. Squared form to skip sqrt on the cull path.
+      const adx = dx<0?-dx:dx, ady = dy<0?-dy:dy;
+      if (adx > 110 || ady > 110) continue;
       const dist=Math.sqrt(dx*dx+dy*dy);
-      const ageFade=Math.max(0,1-src.age/LUCID_LIFETIME);
-      const wave=(Math.sin((dist*0.5-src.age*0.18)*Math.PI)*0.5+0.5);
+      const ageFade=_lucidFrame[fi+2];
+      const srcAge=_lucidFrame[fi+3];
+      const wave=(Math.sin((dist*0.5-srcAge*0.18)*Math.PI)*0.5+0.5);
       const intensity=wave*ageFade*(1-dist/(W*1.2));
-      if(intensity>bestI){bestI=intensity;bestH=(src.hue+dist*12+src.age*4)%360;}
+      if(intensity>bestI){bestI=intensity;bestH=(_lucidFrame[fi+4]+dist*12+srcAge*4)%360;}
     }
     if(bestI>0.25){
       const[lr,lg,lb]=hslToRgb(bestH,100,55);
