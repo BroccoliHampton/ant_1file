@@ -21,12 +21,13 @@ export default function CanvasZone() {
     // Sync current store state → engine on every mount/remount.
     // Needed because engine.js module-level vars (currentEl etc.) reset on
     // HMR hot-reloads and React StrictMode double-mounts.
-    const { activeElement, activeTool, brushSize, speedMult, mutRate } = useSimStore.getState()
+    const { activeElement, activeTool, brushSize, speedMult, mutRate, lowPower } = useSimStore.getState()
     engine.setElement(activeElement)
     engine.setTool(activeTool)
     engine.setBrushSize(brushSize)
     engine.setSpeed(speedMult)
     engine.setMutRate(mutRate)
+    engine.setLowPower(lowPower)
 
     setEngine(engine)
     engine.start()

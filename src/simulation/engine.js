@@ -33,6 +33,18 @@ let _stateCallback = null;
 let _running = false;
 let _paused  = false;
 let _rafId   = null;
+// Auto-pause when the page is hidden (tab switch, backgrounded app on iOS).
+// Distinct from _paused so we can resume cleanly when visibility comes back.
+let _backgrounded = false;
+// Low Power Mode — halves the simulation step rate to reduce phone heat.
+// User-controlled via Mission Control / engine API.
+let _lowPower = false;
+// Render frame throttling — cap to ~30fps on the main thread to free CPU.
+let _lastRenderAt = 0;
+const RENDER_INTERVAL_MS = 33; // ~30fps; sim still runs at full speedMult rate
+// Track whether we've drawn the current frozen state at least once so we can
+// stop re-rendering when paused. Reset whenever something changes.
+let _frozenFrameDrawn = false;
 let _canvasAC = null; // AbortController for canvas event listeners — aborted on stop()
 let _canvasHandlers = null; // stored handler refs so we can removeEventListener without AbortController
 
@@ -7111,18 +7123,38 @@ export function createEngine(canvasEl, stateCallback) {
 
   function _loop(t) {
     if (!_running || _paused) return;
+    // Background pause — we're scheduled but the page is hidden. Schedule the
+    // next RAF (in case visibility returns) but skip all sim/render work.
+    if (_backgrounded) {
+      _rafId = requestAnimationFrame(_loop);
+      return;
+    }
     const dt = t - lastTime; lastTime = t;
+    let didStep = false;
     if (speedMult > 0) {
       stepAccum += dt;
-      const stepMs = 50 / speedMult;
+      // Low Power Mode doubles the step interval — half as many ticks per
+      // wall-clock second. Visible as slower-feeling sim but big CPU savings.
+      const lowPowerMul = _lowPower ? 2 : 1;
+      const stepMs = (50 / speedMult) * lowPowerMul;
       let steps = 0;
       while (stepAccum >= stepMs && steps < Math.ceil(speedMult) * 3) {
-        simStep(); stepAccum -= stepMs; steps++;
+        simStep(); stepAccum -= stepMs; steps++; didStep = true;
       }
     } else {
       stepAccum = 0;
     }
-    render();
+    // 30fps render cap — only repaint if a render frame's worth of time has
+    // elapsed AND something changed (sim stepped, or we've never drawn the
+    // current frozen state yet).
+    if (didStep) _frozenFrameDrawn = false;
+    const sinceRender = t - _lastRenderAt;
+    const shouldRender = sinceRender >= RENDER_INTERVAL_MS && (didStep || !_frozenFrameDrawn);
+    if (shouldRender) {
+      render();
+      _lastRenderAt = t;
+      if (!didStep) _frozenFrameDrawn = true;
+    }
     if (_stateCallback && uiFrame % 8 === 0) {
       let hasMachineCells=false;
       for(let mi=0;mi<W*H;mi++){if(grid[mi]?.t===T.MACHINE){hasMachineCells=true;break;}}
@@ -7150,9 +7182,31 @@ export function createEngine(canvasEl, stateCallback) {
     _rafId = requestAnimationFrame(_loop);
   }
 
+  // Auto-pause when the page is hidden (iOS app backgrounded, tab switch).
+  // Resume cleanly when visibility returns. This is the single biggest
+  // battery/heat win on mobile — without it the sim keeps ticking even
+  // while the user is in another app.
+  function _onVisibilityChange() {
+    if (typeof document === 'undefined') return;
+    if (document.hidden) {
+      _backgrounded = true;
+    } else {
+      _backgrounded = false;
+      // Reset timing so we don't immediately try to catch up on dropped time
+      lastTime = performance.now();
+      stepAccum = 0;
+      _frozenFrameDrawn = false; // force one fresh render
+    }
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', _onVisibilityChange);
+  }
+
   return {
     start()  { _setupCanvasListeners(); _running = true; _paused = false; lastTime = performance.now(); _rafId = requestAnimationFrame(_loop); },
-    stop()   { _running = false; if (_rafId) cancelAnimationFrame(_rafId); _rafId = null; if(_canvasAC){_canvasAC.abort();_canvasAC=null;} if(_canvasHandlers&&canvas){const h=_canvasHandlers;canvas.removeEventListener('mousedown',h.md);canvas.removeEventListener('mousemove',h.mm);canvas.removeEventListener('mouseup',h.mu);canvas.removeEventListener('mouseleave',h.ml);canvas.removeEventListener('contextmenu',h.cm);canvas.removeEventListener('touchstart',h.ts);canvas.removeEventListener('touchmove',h.tm);canvas.removeEventListener('touchend',h.te);_canvasHandlers=null;} },
+    stop()   { _running = false; if (_rafId) cancelAnimationFrame(_rafId); _rafId = null; if(_canvasAC){_canvasAC.abort();_canvasAC=null;} if(_canvasHandlers&&canvas){const h=_canvasHandlers;canvas.removeEventListener('mousedown',h.md);canvas.removeEventListener('mousemove',h.mm);canvas.removeEventListener('mouseup',h.mu);canvas.removeEventListener('mouseleave',h.ml);canvas.removeEventListener('contextmenu',h.cm);canvas.removeEventListener('touchstart',h.ts);canvas.removeEventListener('touchmove',h.tm);canvas.removeEventListener('touchend',h.te);_canvasHandlers=null;} if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', _onVisibilityChange); },
+    setLowPower(on) { _lowPower = !!on; },
+    getLowPower()   { return _lowPower; },
     pause()  { _paused = true; },
     resume() { _paused = false; if (_running) { lastTime = performance.now(); _rafId = requestAnimationFrame(_loop); } },
     reset()  { resetSim(); },

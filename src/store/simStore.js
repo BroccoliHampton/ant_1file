@@ -87,6 +87,13 @@ export const useSimStore = create((set, get) => ({
     set({ entropyFilter: new Set(eng?.getEntropyFilter() || []) })
   },
 
+  // Low Power Mode — halves the sim step rate to reduce phone heat.
+  lowPower: false,
+  setLowPower: (v) => {
+    set({ lowPower: !!v })
+    get().engine?.setLowPower?.(!!v)
+  },
+
   // Brush & speed — synced to engine
   brushSize: 3,
   speedMult: 1,

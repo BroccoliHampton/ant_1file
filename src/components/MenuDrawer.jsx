@@ -41,6 +41,8 @@ export default function MenuDrawer() {
   const initEntropyFilter = useSimStore(s => s.initEntropyFilter)
   const toggleEntropyKey  = useSimStore(s => s.toggleEntropyKey)
   const setAllEntropyKeys = useSimStore(s => s.setAllEntropyKeys)
+  const lowPower          = useSimStore(s => s.lowPower)
+  const setLowPower       = useSimStore(s => s.setLowPower)
   const [eventsOpen, setEventsOpen] = useState(false)
 
   // Sync the store's filter cache from the engine on first drawer open
@@ -111,6 +113,31 @@ export default function MenuDrawer() {
               <span style={{fontSize:'9px',color:entropyRate===0?'var(--text)':'#ff8844',minWidth:'28px',textAlign:'right'}}>
                 {entropyRate === 0 ? 'OFF' : `${Math.round(entropyRate * 100)}%`}
               </span>
+            </div>
+            {/* Low Power Mode — halves the sim step rate to reduce phone heat */}
+            <div style={{display:'flex',alignItems:'center',gap:'8px',marginTop:'6px'}}>
+              <span style={{fontSize:'9px',color:'var(--dim)',letterSpacing:'2px',minWidth:'80px'}}>LOW POWER</span>
+              <button
+                onClick={() => setLowPower(!lowPower)}
+                style={{
+                  flex: 1,
+                  padding: '5px 10px',
+                  fontSize: 9,
+                  letterSpacing: '0.15em',
+                  background: lowPower
+                    ? 'linear-gradient(#1a4030, #0a2018) padding-box, var(--uf-gradient-rainbow-conic) border-box'
+                    : 'var(--btn-bg)',
+                  color: lowPower ? '#3dfc84' : 'var(--dim)',
+                  border: lowPower ? '1.5px solid transparent' : '1px solid var(--btn-border)',
+                  borderRadius: 4,
+                  fontFamily: 'var(--mono)',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  boxShadow: lowPower ? '0 0 8px rgba(61,252,132,0.3)' : 'none',
+                }}
+              >
+                {lowPower ? '● ON · half step rate, less heat' : '○ OFF · full step rate'}
+              </button>
             </div>
             <div style={{marginTop:'6px'}}>
               <button
