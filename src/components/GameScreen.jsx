@@ -1,6 +1,6 @@
 import StatusRibbon from './StatusRibbon.jsx'
 import CanvasZone from './CanvasZone.jsx'
-import Toolbar from './Toolbar/index.jsx'
+import Console from './Console/Console.jsx'
 import MenuDrawer from './MenuDrawer.jsx'
 import TerraChat from './TerraChat.jsx'
 import TerraFab from './TerraFab.jsx'
@@ -47,7 +47,7 @@ export default function GameScreen({ theme, onToggleTheme }) {
 
       <StatusRibbon theme={theme} onToggleTheme={onToggleTheme} />
       <CanvasZone />
-      <Toolbar />
+      <Console />
       <MenuDrawer />
       <TerraFab />
       <TerraChat open={terraOpen} onClose={() => setTerraOpen(false)} />

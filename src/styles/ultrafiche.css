@@ -374,6 +374,19 @@
   box-shadow: 0 0 3px var(--uf-neon-green), 0 0 14px rgba(61,252,132,0.6); }
 
 
+/* ─── SHEET ANIMATIONS ───────────────────────────────────────
+   Used by BrushSheet / ToolSheet (and any future bottom sheet).
+   ─────────────────────────────────────────────────────────── */
+@keyframes uf-slide-up {
+  from { transform: translateY(100%); opacity: 0.5; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes uf-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+
 /* ─── FAB UNREAD PULSE ───────────────────────────────────────
    Subtle green neon pulse around a chrome-disc FAB to indicate
    that something is waiting (Terra unread, mutation event, etc.)
