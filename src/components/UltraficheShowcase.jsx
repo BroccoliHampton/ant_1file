@@ -20,7 +20,7 @@ export default function UltraficheShowcase({ onClose }) {
       {/* HERO */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <h1 className="uf-chunky uf-chrome-text uf-display-xl">
-          ALIEN ANT FARM
+          PIXEL TERRARIUM
         </h1>
         <span className="uf-rainbow-bar" />
         <p className="uf-label uf-silver-text uf-label-md" style={{ marginTop: 6 }}>

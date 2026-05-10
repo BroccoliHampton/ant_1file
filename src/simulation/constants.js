@@ -1,5 +1,5 @@
 // ================================================================
-//  ALIEN ANT FARM — Simulation Constants
+//  PIXEL TERRARIUM — Simulation Constants
 // ================================================================
 
 export const W = 120;

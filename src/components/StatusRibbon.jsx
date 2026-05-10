@@ -1,13 +1,10 @@
 /**
- * StatusRibbon — Phase 1 replacement for AppHeader + StatsStrip.
+ * StatusRibbon — top chrome strip.
  *
- * A single chrome strip showing:
- *   ☰ MENU  ·  ALIEN ANT FARM  ·  ERA / POP  ·  ☀/🌙
+ *   ☰ MENU  ·  PIXEL TERRARIUM  ·  TICK / ERA / POP  ·  ☀/🌙
  *
- * TICK lives in the dynamic island (PhoneShell), not here.
- *
- * Total height: 32px (down from 44+36 = 80px). Frees ~48px of
- * canvas headroom.
+ * Now that the simulated phone shell is gone (iOS-native layout), the TICK
+ * counter lives here too instead of inside a fake dynamic island.
  */
 import { useSimStore } from '../store/simStore.js'
 import { T } from '../simulation/constants.js'
@@ -45,6 +42,7 @@ function getTotalPop(populations) {
 
 export default function StatusRibbon({ theme, onToggleTheme }) {
   const setMenuOpen = useSimStore(s => s.setMenuOpen)
+  const tick        = useSimStore(s => s.tick)
   const era         = useSimStore(s => s.era)
   const populations = useSimStore(s => s.populations)
   const gol         = useGolStatus()
@@ -89,9 +87,16 @@ export default function StatusRibbon({ theme, onToggleTheme }) {
       }}>
         <span
           className="uf-chunky uf-chrome-text"
-          style={{ fontSize: 13, letterSpacing: '0.18em', lineHeight: 1 }}
+          style={{
+            fontSize: 13,
+            letterSpacing: '0.18em',
+            lineHeight: 1,
+            // Brand-signature green underglow on the chrome wordmark — echoes
+            // the canvas bezel and the Pop Viridescent reference logo.
+            filter: 'drop-shadow(0 0 6px rgba(80, 240, 140, 0.55)) drop-shadow(0 0 14px rgba(40, 200, 110, 0.3))',
+          }}
         >
-          ALIEN ANT FARM
+          PIXEL TERRARIUM
         </span>
         <span
           className="uf-label uf-silver-text uf-label-sm"
@@ -99,7 +104,7 @@ export default function StatusRibbon({ theme, onToggleTheme }) {
         >
           {gol.showGol
             ? renderGolLabel(gol)
-            : `ERA · ${era} · POP ${totalPop}`}
+            : `TICK ${tick.toLocaleString()} · ${era} · POP ${totalPop}`}
         </span>
       </div>
 

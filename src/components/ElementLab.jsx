@@ -66,7 +66,7 @@ const T_LOOKUP = {
   NULL: null,
 }
 
-const STORAGE_KEY = 'aaf_custom_elements_v1'
+const STORAGE_KEY = 'pt_custom_elements_v1'
 
 function loadFromStorage() {
   try {

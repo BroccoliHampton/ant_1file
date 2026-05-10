@@ -8,7 +8,7 @@ import ElementLab from './ElementLab.jsx'
 import { useSimStore } from '../store/simStore.js'
 import { useEffect } from 'react'
 
-const ELEM_STORAGE_KEY = 'aaf_custom_elements_v1'
+const ELEM_STORAGE_KEY = 'pt_custom_elements_v1'
 
 export default function GameScreen({ theme, onToggleTheme }) {
   const terraOpen = useSimStore(s => s.terraOpen)

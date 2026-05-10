@@ -18,18 +18,20 @@ import { useSimStore } from '../../store/simStore.js'
 import { ELEMENTS } from '../../simulation/constants.js'
 
 const CATS = [
-  { id: 'terrain', label: 'TERRAIN' },
-  { id: 'life',    label: 'LIFE'    },
-  { id: 'special', label: 'SPECIAL' },
-  { id: 'rx',      label: 'Rx'      },
-  { id: 'mine',    label: 'MINE'    },
+  { id: 'elements', label: 'ELEMENTS' },
+  { id: 'life',     label: 'LIFE'     },
+  { id: 'virus',    label: 'VIRUS'    },
+  { id: 'special',  label: 'SPECIAL'  },
+  { id: 'rx',       label: 'Rx'       },
+  { id: 'mine',     label: 'MINE'     },
 ]
 
 const MOBILE_CATS = {
-  terrain: ['jelly','sand','clay','stone','ice','goldSand','whiteSand','salt','water','acid','oil','ash','smoke','steam','gunpowder','wall','fire','lava'],
-  life:    ['worm','wood','ant','queen','spider','queenSpider','termite','queenTermite','wasp','queenWasp','plant','seed','detritus','fungi','spore'],
-  special: ['machine','bacteria','quark','rna1','fractal1','fractal2','customelem_1','customelem_2','mutagen','chromadust','cloud','bloomCloud','progCloud','progVoid'],
-  rx:      ['lucid','crank','flaca'],
+  elements: ['jelly','sand','clay','stone','ice','goldSand','whiteSand','salt','water','acid','oil','ash','smoke','steam','gunpowder','wall','fire','lava'],
+  life:     ['worm','wood','ant','queen','spider','queenSpider','termite','queenTermite','wasp','queenWasp','plant','seed','detritus','fungi','spore','mutagen','chromadust'],
+  virus:    ['machine','bacteria','rna1'],
+  special:  ['quark','fractal1','fractal2','customelem_1','customelem_2','cloud','bloomCloud','progCloud','progVoid'],
+  rx:       ['lucid','crank','flaca'],
 }
 
 export default function BrushSheet({ open, onClose }) {
@@ -70,14 +72,23 @@ export default function BrushSheet({ open, onClose }) {
     }
   }
 
-  // Auto-switch category when a custom element is just saved & auto-selected
+  // Auto-switch category when a custom element is just saved & auto-selected.
+  // We resolve which BrushSheet category contains the active element by
+  // searching MOBILE_CATS directly (MOBILE_CATS is the source of truth for
+  // categorization, not ELEMENTS.cat which uses legacy names).
+  function findCatForKey(key) {
+    for (const [catKey, keys] of Object.entries(MOBILE_CATS)) {
+      if (keys.includes(key)) return catKey
+    }
+    return null
+  }
   useEffect(() => {
     if (!open) return
-    const e = ELEMENTS.find(x => x.key === activeElement)
-    if (e && e.cat !== cat) setCat(e.cat)
-    else if (activeElement?.startsWith('customelem_') && !ELEMENTS.find(x => x.key === activeElement)) {
-      // It's a user-saved element, default to MINE so they can see it
-      if (cat !== 'special' && cat !== 'mine') setCat('special')
+    const target = findCatForKey(activeElement)
+    if (target && target !== cat) setCat(target)
+    else if (!target && activeElement?.startsWith('customelem_')) {
+      // User-saved custom element — show in MINE
+      if (cat !== 'mine') setCat('mine')
     }
   }, [open])
   // ↑ intentionally not depending on activeElement — only run on open
