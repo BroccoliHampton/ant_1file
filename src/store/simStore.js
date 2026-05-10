@@ -93,6 +93,9 @@ export const useSimStore = create((set, get) => ({
     set({ lowPower: !!v })
     get().engine?.setLowPower?.(!!v)
   },
+  // Show in-game perf overlay (FPS / sim ms / render ms / active cells)
+  perfOverlay: false,
+  setPerfOverlay: (v) => set({ perfOverlay: !!v }),
 
   // Brush & speed — synced to engine
   brushSize: 3,

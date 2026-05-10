@@ -36,6 +36,12 @@ let _rafId   = null;
 // Auto-pause when the page is hidden (tab switch, backgrounded app on iOS).
 // Distinct from _paused so we can resume cleanly when visibility comes back.
 let _backgrounded = false;
+// Render-side indices of cells that need overlay drawing — populated by their
+// step functions each tick and consumed by render(). Avoids two full-grid
+// scans per frame (queens crown glow + frogstone tongues). Just plain arrays
+// reused across ticks (no allocation churn).
+const _queenIndices = [];
+const _frogstoneIndices = [];
 // Low Power Mode — halves the simulation step rate to reduce phone heat.
 // User-controlled via Mission Control / engine API.
 let _lowPower = false;
@@ -45,6 +51,8 @@ const RENDER_INTERVAL_MS = 33; // ~30fps; sim still runs at full speedMult rate
 // Track whether we've drawn the current frozen state at least once so we can
 // stop re-rendering when paused. Reset whenever something changes.
 let _frozenFrameDrawn = false;
+// Perf instrumentation — exposed via engine API for an in-game overlay.
+const _perfHistory = { renderMs: 0, simMs: 0, fps: 0, lastFpsAt: 0, frames: 0 };
 let _canvasAC = null; // AbortController for canvas event listeners — aborted on stop()
 let _canvasHandlers = null; // stored handler refs so we can removeEventListener without AbortController
 
@@ -1203,6 +1211,8 @@ function stepQueenTermite(x,y,p){
 //  QUEEN ANT
 // ================================================================
 function stepQueen(x,y,p){
+  // Register self for render's crown-glow overlay (avoids a full grid scan)
+  _queenIndices.push(idx(x,y));
   p.age++;
   processBuff(p);
   const lv=lightGrid[idx(x,y)];
@@ -1668,6 +1678,8 @@ function stepSeed(x,y,p){
 function stepFrogstone(x,y,p){
   // Only the hub cell (bottom-center of dome) runs logic
   if(!p.isHub) return;
+  // Register self for render's tongue overlay if a tongue is active
+  if(p.tongue) _frogstoneIndices.push(idx(x,y));
 
   p.phase=(p.phase||0)+1;
   p.hp=Math.min(255,(p.hp||200)+0.04);
@@ -2099,14 +2111,17 @@ function createChromaCreature(hue){
 function stepChromadust(x,y,p){
   p.ttl=(p.ttl||200)-1;
   if(p.ttl<=0){
+    // Only ~25% of chromadust particles seed a creature on decay. Previously
+    // 100% did, which floods the world with custom creatures every time the
+    // user paints a brushful — each one then runs stepCustom every tick and
+    // tanks framerate. The remainder simply dissipate.
+    // Also enforce a per-strain cap to prevent runaway populations.
     const spec=chromaStrains.get(p.hue);
-    if(spec){
+    if(spec&&Math.random()<0.25&&(POP[spec.id]||0)<60){
       const cell=spawnCustomCell(spec.id,x,y,false);
-      if(cell){grid[idx(x,y)]=cell;POP[spec.id]=(POP[spec.id]||0)+1;}
-      else grid[idx(x,y)]=null;
-    } else {
-      grid[idx(x,y)]=null;
+      if(cell){grid[idx(x,y)]=cell;POP[spec.id]=(POP[spec.id]||0)+1;return;}
     }
+    grid[idx(x,y)]=null;
     return;
   }
   tryFlow(x,y);
@@ -2938,27 +2953,28 @@ function render(){
 
   ctx.putImageData(imageData,0,0);
 
-  // Queens: draw a slightly larger "crown glow" overlay so they read as bigger than a 1-cell dot.
+  // Queens: draw "crown glow" overlay using the index list populated by
+  // stepQueen each tick. Avoids a 24,000-cell scan per render frame.
   ctx.save();
   const qPad=Math.max(1,Math.floor(S*0.45));
-  for(let i=0;i<W*H;i++){
+  for(let qi=0; qi<_queenIndices.length; qi++){
+    const i=_queenIndices[qi];
     const p=grid[i];
-    if(p?.t!==T.QUEEN) continue;
+    if(!p||p.t!==T.QUEEN) continue; // index could be stale if queen died this frame
     const x=_CX[i]*S, y=_CY[i]*S;
-    // Outer glow
     ctx.fillStyle='rgba(255,140,0,0.22)';
     ctx.fillRect(x-qPad,y-qPad,S+qPad*2,S+qPad*2);
-    // Inner bright core
     ctx.fillStyle='rgba(255,210,120,0.18)';
     ctx.fillRect(x-1,y-1,S+2,S+2);
   }
   ctx.restore();
 
-  // Draw Frogstone tongues as canvas overlay — only hub cells with active tongue
+  // Frogstone tongues — same trick: use index list instead of full-grid scan.
   ctx.save();
-  for(let i=0;i<W*H;i++){
+  for(let fi=0; fi<_frogstoneIndices.length; fi++){
+    const i=_frogstoneIndices[fi];
     const p=grid[i];
-    if(p?.t!==T.FROGSTONE||!p.isHub||!p.tongue) continue;
+    if(!p||p.t!==T.FROGSTONE||!p.isHub||!p.tongue) continue;
     const bx=_CX[i]*S+Math.floor(S/2);
     const by=_CY[i]*S+Math.floor(S/2);
     const {tx,ty,hold,maxHold}=p.tongue;
@@ -3847,6 +3863,9 @@ function growFractals(){
 function simStep(){
   // Reshuffle every 80 ticks (was 40) — still provides sufficient randomness
   if(++stepsSince>80){buildOrder();stepsSince=0;}
+  // Reset render-overlay indices — step functions will repopulate as they run
+  _queenIndices.length = 0;
+  _frogstoneIndices.length = 0;
   // Use indexed loop + pre-computed x/y — avoids i%W / Math.floor(i/W) per cell
   const len=W*H;
   for(let k=0;k<len;k++){const i=updateOrder[k];if(grid[i])stepParticle(_CX[i],_CY[i]);}
@@ -7131,29 +7150,41 @@ export function createEngine(canvasEl, stateCallback) {
     }
     const dt = t - lastTime; lastTime = t;
     let didStep = false;
+    let simStart = 0, simElapsed = 0;
     if (speedMult > 0) {
       stepAccum += dt;
-      // Low Power Mode doubles the step interval — half as many ticks per
-      // wall-clock second. Visible as slower-feeling sim but big CPU savings.
       const lowPowerMul = _lowPower ? 2 : 1;
       const stepMs = (50 / speedMult) * lowPowerMul;
       let steps = 0;
+      simStart = performance.now();
       while (stepAccum >= stepMs && steps < Math.ceil(speedMult) * 3) {
         simStep(); stepAccum -= stepMs; steps++; didStep = true;
       }
+      if (didStep) simElapsed = performance.now() - simStart;
     } else {
       stepAccum = 0;
     }
-    // 30fps render cap — only repaint if a render frame's worth of time has
-    // elapsed AND something changed (sim stepped, or we've never drawn the
-    // current frozen state yet).
-    if (didStep) _frozenFrameDrawn = false;
+    if (didStep) {
+      _frozenFrameDrawn = false;
+      // EMA smoothing on sim time — single-tick variance is noisy
+      _perfHistory.simMs = _perfHistory.simMs * 0.85 + simElapsed * 0.15;
+    }
     const sinceRender = t - _lastRenderAt;
     const shouldRender = sinceRender >= RENDER_INTERVAL_MS && (didStep || !_frozenFrameDrawn);
     if (shouldRender) {
+      const renderStart = performance.now();
       render();
+      const renderElapsed = performance.now() - renderStart;
+      _perfHistory.renderMs = _perfHistory.renderMs * 0.85 + renderElapsed * 0.15;
       _lastRenderAt = t;
       if (!didStep) _frozenFrameDrawn = true;
+      // FPS counter — count frames-rendered per second window
+      _perfHistory.frames++;
+      if (t - _perfHistory.lastFpsAt > 500) {
+        _perfHistory.fps = (_perfHistory.frames * 1000) / (t - _perfHistory.lastFpsAt);
+        _perfHistory.lastFpsAt = t;
+        _perfHistory.frames = 0;
+      }
     }
     if (_stateCallback && uiFrame % 8 === 0) {
       let hasMachineCells=false;
@@ -7207,6 +7238,20 @@ export function createEngine(canvasEl, stateCallback) {
     stop()   { _running = false; if (_rafId) cancelAnimationFrame(_rafId); _rafId = null; if(_canvasAC){_canvasAC.abort();_canvasAC=null;} if(_canvasHandlers&&canvas){const h=_canvasHandlers;canvas.removeEventListener('mousedown',h.md);canvas.removeEventListener('mousemove',h.mm);canvas.removeEventListener('mouseup',h.mu);canvas.removeEventListener('mouseleave',h.ml);canvas.removeEventListener('contextmenu',h.cm);canvas.removeEventListener('touchstart',h.ts);canvas.removeEventListener('touchmove',h.tm);canvas.removeEventListener('touchend',h.te);_canvasHandlers=null;} if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', _onVisibilityChange); },
     setLowPower(on) { _lowPower = !!on; },
     getLowPower()   { return _lowPower; },
+    // Perf snapshot — exposed for the in-game FPS / sim-ms overlay.
+    // All times are EMA-smoothed milliseconds; fps is rendered-frames/sec.
+    getPerfStats() {
+      // Count active cells once for the overlay so users can see how busy
+      // the world actually is (chromadust scenarios were the trigger).
+      let active = 0;
+      for (let i = 0; i < W*H; i++) if (grid[i]) active++;
+      return {
+        fps:      Math.round(_perfHistory.fps * 10) / 10,
+        simMs:    Math.round(_perfHistory.simMs * 100) / 100,
+        renderMs: Math.round(_perfHistory.renderMs * 100) / 100,
+        activeCells: active,
+      };
+    },
     pause()  { _paused = true; },
     resume() { _paused = false; if (_running) { lastTime = performance.now(); _rafId = requestAnimationFrame(_loop); } },
     reset()  { resetSim(); },

@@ -5,6 +5,7 @@ import MenuDrawer from './MenuDrawer.jsx'
 import TerraChat from './TerraChat.jsx'
 import TerraFab from './TerraFab.jsx'
 import ElementLab from './ElementLab.jsx'
+import PerfOverlay from './PerfOverlay.jsx'
 import { useSimStore } from '../store/simStore.js'
 import { useEffect } from 'react'
 
@@ -52,6 +53,7 @@ export default function GameScreen({ theme, onToggleTheme }) {
       <TerraFab />
       <TerraChat open={terraOpen} onClose={() => setTerraOpen(false)} />
       <ElementLab />
+      <PerfOverlay />
 
       {/* ── Weather Station config panel (engine wires up button listeners) ── */}
       <div id="ws-panel" style={{display:'none',position:'fixed',bottom:'0',left:'50%',transform:'translateX(-50%)',zIndex:200,background:'var(--menu-bg)',border:'1px solid var(--btn-border)',borderRadius:'10px 10px 0 0',padding:'8px 12px',minWidth:'240px',fontFamily:'var(--mono)',fontSize:'8px',color:'var(--text)'}}>

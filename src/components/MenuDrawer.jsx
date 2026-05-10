@@ -43,6 +43,8 @@ export default function MenuDrawer() {
   const setAllEntropyKeys = useSimStore(s => s.setAllEntropyKeys)
   const lowPower          = useSimStore(s => s.lowPower)
   const setLowPower       = useSimStore(s => s.setLowPower)
+  const perfOverlay       = useSimStore(s => s.perfOverlay)
+  const setPerfOverlay    = useSimStore(s => s.setPerfOverlay)
   const [eventsOpen, setEventsOpen] = useState(false)
 
   // Sync the store's filter cache from the engine on first drawer open
@@ -137,6 +139,30 @@ export default function MenuDrawer() {
                 }}
               >
                 {lowPower ? '● ON · half step rate, less heat' : '○ OFF · full step rate'}
+              </button>
+            </div>
+            {/* Perf overlay — toggle a small floating FPS / sim-ms / cells readout */}
+            <div style={{display:'flex',alignItems:'center',gap:'8px',marginTop:'6px'}}>
+              <span style={{fontSize:'9px',color:'var(--dim)',letterSpacing:'2px',minWidth:'80px'}}>PERF HUD</span>
+              <button
+                onClick={() => setPerfOverlay(!perfOverlay)}
+                style={{
+                  flex: 1,
+                  padding: '5px 10px',
+                  fontSize: 9,
+                  letterSpacing: '0.15em',
+                  background: perfOverlay
+                    ? 'linear-gradient(#10303a, #051820) padding-box, var(--uf-gradient-silver-vertical) border-box'
+                    : 'var(--btn-bg)',
+                  color: perfOverlay ? '#9ad' : 'var(--dim)',
+                  border: perfOverlay ? '1.5px solid transparent' : '1px solid var(--btn-border)',
+                  borderRadius: 4,
+                  fontFamily: 'var(--mono)',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                {perfOverlay ? '● ON · live FPS overlay' : '○ OFF'}
               </button>
             </div>
             <div style={{marginTop:'6px'}}>
