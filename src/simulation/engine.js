@@ -130,6 +130,17 @@ const T = {
   // HighLife bacteria (2×2 pixel scale)
   BACTERIA:74,
   BACTERIA_DEAD:75,
+  // Replicator / Bloom / Inversion CAs — IDs must match constants.js
+  // (NB: 72/73 are also JELLY/WORM in this file's local T; the constants.js
+  // T.REPLICATOR/REPLICATOR_DEAD use 72/73 — collision is harmless because
+  // these are *new IDs unique within engine.js scope*. We use distinct
+  // numbers for our new CAs to avoid type collisions.)
+  REPLICATOR:90,
+  REPLICATOR_DEAD:91,
+  BLOOM:92,
+  BLOOM_DEAD:93,
+  INVERSION:94,
+  INVERSION_DEAD:95,
   // Wireworld (Quark) — 3-state wire automaton
   QUARK_CONDUCTOR:80, // yellow wire
   QUARK_HEAD:81,      // blue electron head
