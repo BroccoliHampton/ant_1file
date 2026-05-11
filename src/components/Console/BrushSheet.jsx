@@ -29,7 +29,7 @@ const CATS = [
 const MOBILE_CATS = {
   elements: ['jelly','sand','clay','stone','ice','goldSand','whiteSand','salt','water','acid','oil','ash','smoke','steam','gunpowder','wall','fire','lava'],
   life:     ['worm','wood','ant','queen','spider','queenSpider','termite','queenTermite','wasp','queenWasp','plant','seed','detritus','fungi','spore','mutagen','chromadust'],
-  virus:    ['machine','bacteria','rna1','fractal1','fractal2'],
+  virus:    ['machine','bacteria','replicator','bloom','inversion','rna1','fractal1','fractal2'],
   special:  ['quark','customelem_1','customelem_2','cloud','bloomCloud','progCloud','progVoid'],
   rx:       ['lucid','crank','flaca'],
 }

@@ -2858,6 +2858,9 @@ function stepParticle(x,y){
   if(p.t===T.MACHINE_DEAD){stepMachineDead(x,y,p);return;}
   if(p.t===T.BACTERIA)return;
   if(p.t===T.BACTERIA_DEAD){stepBacteriaDead(x,y,p);return;}
+  // Generic CAs — live cells are static between ticks; dead cells decay
+  if(p.t===T.REPLICATOR||p.t===T.BLOOM||p.t===T.INVERSION)return;
+  if(p.t===T.REPLICATOR_DEAD||p.t===T.BLOOM_DEAD||p.t===T.INVERSION_DEAD){stepCADead(x,y,p);return;}
   // Fractal visual cells — just TTL decay, no physics, no creature interaction
   if(p.t===T.FRACTAL){p.ttl=(p.ttl||300)-1;p.age++;if(p.ttl<=0)grid[idx(x,y)]=null;return;}
   if(p.t===T.JULIA){p.age++;if(p.ttl!=null){p.ttl--;if(p.ttl<=0)grid[idx(x,y)]=null;}return;}
@@ -3299,6 +3302,42 @@ function getColor(p,x,y){
     r=Math.floor(20*fade);g=Math.floor(200*fade);b=Math.floor(80*fade);
     return 0xFF000000|(b<<16)|(g<<8)|r;
   }
+  // ── Generic CAs: REPLICATOR / BLOOM / INVERSION (+ dead fade variants) ──
+  if(p.t===T.REPLICATOR){
+    // Pink magenta-cyan oscillating — feels like dangerous data
+    const pulse=Math.sin(tickCount*0.18+(x+y)*0.2)*0.5+0.5;
+    r=Math.round(220+pulse*35); g=Math.round(40+pulse*60); b=Math.round(180+pulse*20);
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  if(p.t===T.REPLICATOR_DEAD){
+    const fade=Math.max(0,1-(p.age/5));
+    r=Math.floor(180*fade);g=Math.floor(60*fade);b=Math.floor(160*fade);
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  if(p.t===T.BLOOM){
+    // Vivid yellow-green with bright sparkle — short-lived bloom
+    if(Math.random()<0.08){r=240;g=255;b=120;}
+    else{r=140;g=230;b=80;}
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  if(p.t===T.BLOOM_DEAD){
+    const fade=Math.max(0,1-(p.age/5));
+    r=Math.floor(180*fade);g=Math.floor(240*fade);b=Math.floor(80*fade);
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  if(p.t===T.INVERSION){
+    // Silver-and-violet half-and-half — checker the cell position for a
+    // self-complementary look (matches the Day & Night theme)
+    const dark=((x+y)&1)===0;
+    if(dark){r=30;g=20;b=50;}
+    else{r=220;g=210;b=235;}
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  if(p.t===T.INVERSION_DEAD){
+    const fade=Math.max(0,1-(p.age/5));
+    r=Math.floor(140*fade);g=Math.floor(120*fade);b=Math.floor(180*fade);
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
   // ── Quark (Wireworld) ──
   if(p.t===T.QUARK_CONDUCTOR){
     // Warm amber wire — subtle pulse on even ticks for a "live circuit" feel
@@ -3416,6 +3455,223 @@ function endBacteriaRun(){
   }
   lastBacteriaPlacedTime=0;
   bacteriaUniX0=0;bacteriaUniY0=0;bacteriaUniX1=W-1;bacteriaUniY1=H-1;
+}
+
+// ================================================================
+//  GENERIC CA SYSTEM — used by REPLICATOR / BLOOM / INVERSION
+//  (and any future B/S rule virus added to CA_RULES).
+//  Mirrors the MACHINE / BACTERIA behavior: brush-paint, auto-activate
+//  after a delay, run a step every N ticks, end with a best-gen toast.
+// ================================================================
+
+// Organic types that CAs can "infect" or interact with. Reused across rules.
+function _isOrganicForCA(t){
+  return (t===T.ANT||t===T.QUEEN||t===T.SPIDER||t===T.QUEEN_SPIDER||
+    t===T.TERMITE||t===T.QUEEN_TERMITE||t===T.WASP||t===T.QUEEN_WASP||
+    t===T.PLANT||t===T.PLANT_WALL||t===T.FUNGI||t===T.WEB||
+    t===T.DETRITUS||t===T.SPORE||t===T.SEED||t===T.EGG||t===T.WOOD);
+}
+function _isTerrainKillForCA(t){
+  return (t===T.SAND||t===T.GOLD_SAND||t===T.WHITE_SAND||
+    t===T.SALT||t===T.GUNPOWDER||t===T.ASH);
+}
+
+// Rule registry. Each entry describes a single CA type the engine supports.
+// Adding another B/S virus = one entry here + brush case + render color +
+// element-tray entry. No engine-loop changes needed.
+const CA_RULES = {
+  [T.REPLICATOR]: {
+    deadType: T.REPLICATOR_DEAD,
+    bornSet:    new Set([1,3,5,7]),
+    surviveSet: new Set([1,3,5,7]),
+    tickRate: 30,
+    name: 'REPLICATOR',
+    icon: '🧬',
+    bestKey: 'pt_replicator_best',
+    // On contact with any organic neighbor, has a small chance to convert
+    // it into a REPLICATOR cell. Infections spread through life only.
+    onContact(nbrCell){
+      if(!nbrCell) return null;
+      if(_isOrganicForCA(nbrCell.t) && Math.random() < 0.07){
+        if(nbrCell.g) popDecr(nbrCell);
+        return { t: T.REPLICATOR, age: 0 };
+      }
+      return null;
+    },
+  },
+  [T.BLOOM]: {
+    deadType: T.BLOOM_DEAD,
+    bornSet:    new Set([2]),
+    surviveSet: new Set([]),  // Seeds rule: nothing survives
+    tickRate: 22,
+    name: 'BLOOM',
+    icon: '🌱',
+    bestKey: 'pt_bloom_best',
+    // When a BLOOM cell dies, small chance to release MUTAGEN nearby.
+    // Stimulates real plants if adjacent.
+    onDeath(x, y){
+      if(Math.random() < 0.10){
+        const nbrs = getNeighbors(x, y).filter(([nx,ny]) => !get(nx,ny));
+        if(nbrs.length){
+          const [nx, ny] = nbrs[Math.floor(Math.random()*nbrs.length)];
+          grid[idx(nx,ny)] = { t: T.MUTAGEN, age: 0 };
+        }
+      }
+    },
+  },
+  [T.INVERSION]: {
+    deadType: T.INVERSION_DEAD,
+    bornSet:    new Set([3,6,7,8]),
+    surviveSet: new Set([3,4,6,7,8]),
+    tickRate: 26,
+    name: 'INVERSION',
+    icon: '🌗',
+    bestKey: 'pt_inversion_best',
+    // On contact with a creature, briefly swap its energy and HP — an
+    // "inverted" state. Effect is rare per tick but compounds over a run.
+    onContact(nbrCell){
+      if(nbrCell?.g && Math.random() < 0.03){
+        const tmpE = nbrCell.energy || 0;
+        nbrCell.energy = Math.min(255, nbrCell.hp || 0);
+        nbrCell.hp = Math.max(1, Math.min(255, tmpE));
+      }
+      return null;
+    },
+  },
+};
+
+// Per-CA-type runtime state: bounding box, run flag, generation counter,
+// best-recorded run, last-placed time for activation delay.
+const caState = new Map();
+function _initCAState(caId){
+  const rule = CA_RULES[caId];
+  let best = 0;
+  try{ best = parseInt(localStorage.getItem(rule.bestKey)||'0'); }catch(e){}
+  caState.set(caId, {
+    x0: 0, y0: 0, x1: W-1, y1: H-1,
+    running: false, gen: 0, best, lastPlacedTime: 0,
+  });
+}
+for(const idStr of Object.keys(CA_RULES)) _initCAState(parseInt(idStr));
+
+// Cap simultaneously-active CAs (including MACHINE + BACTERIA) at 3 to keep
+// iOS heat under control. Used by activation gates.
+function _activeCACount(){
+  let n = 0;
+  if(machineRunning) n++;
+  if(bacteriaRunning) n++;
+  for(const s of caState.values()) if(s.running) n++;
+  return n;
+}
+
+// One step of a generic B/S CA. Mirrors stepMachineGoL.
+function stepCA(caId){
+  const rule = CA_RULES[caId];
+  const state = caState.get(caId);
+  // Snapshot live cells
+  const liveCells = [];
+  for(let i=0;i<W*H;i++) if(grid[i]?.t===caId) liveCells.push(i);
+  if(liveCells.length===0){ endCARun(caId); return; }
+  state.gen++;
+
+  // Candidate set = live cells + their neighbors
+  const toEval = new Set(liveCells);
+  for(const i of liveCells){
+    const x=i%W, y=Math.floor(i/W);
+    for(const[nx,ny] of getNeighbors(x,y)) toEval.add(idx(nx,ny));
+  }
+
+  const deaths = [], births = [];
+  for(const i of toEval){
+    const x=i%W, y=Math.floor(i/W);
+    const cell = grid[i];
+    const isAlive = cell?.t===caId;
+    let liveN=0, hazard=false;
+    for(const[nx,ny] of getNeighbors(x,y)){
+      const n = grid[idx(nx,ny)];
+      if(!n) continue;
+      if(n.t===caId) liveN++;
+      else if(n.t===T.WATER||n.t===T.STEAM||n.t===T.ICE) hazard=true;
+      else if(n.t===T.FIRE||n.t===T.LAVA||n.t===T.BLOOM_FIRE) hazard=true;
+      else if(n.t===T.ACID) hazard=true;
+    }
+    if(isAlive){
+      if(hazard || !rule.surviveSet.has(liveN)) deaths.push(i);
+    } else {
+      if(rule.bornSet.has(liveN) && !hazard){
+        const inUni = x>=state.x0 && x<=state.x1 && y>=state.y0 && y<=state.y1;
+        if(inUni && !cell) births.push(i);
+      }
+    }
+  }
+
+  // Apply deaths
+  for(const i of deaths){
+    if(grid[i]?.t===caId){
+      grid[i] = { t: rule.deadType, age: 0 };
+      if(rule.onDeath) rule.onDeath(i%W, Math.floor(i/W));
+    }
+  }
+  // Apply births
+  for(const i of births){
+    if(grid[i]) continue;
+    grid[i] = { t: caId, age: 0 };
+  }
+
+  // Contact interactions (organic infection, energy inversion, etc.)
+  if(rule.onContact){
+    for(const i of liveCells){
+      if(grid[i]?.t!==caId) continue;
+      const x=i%W, y=Math.floor(i/W);
+      for(const[nx,ny] of getNeighbors(x,y)){
+        const ni = idx(nx,ny);
+        const result = rule.onContact(grid[ni], x, y, nx, ny);
+        if(result) grid[ni] = result;
+      }
+    }
+  }
+
+  // Universal terrain-death: loose terrain still kills CA cells (matches MACHINE)
+  for(const i of liveCells){
+    if(grid[i]?.t!==caId) continue;
+    const x=i%W, y=Math.floor(i/W);
+    for(const[nx,ny] of getNeighbors(x,y)){
+      const n = grid[idx(nx,ny)];
+      if(n && _isTerrainKillForCA(n.t)){
+        grid[i] = { t: rule.deadType, age: 0 };
+        break;
+      }
+    }
+  }
+
+  // End if extinct
+  let anyAlive=false;
+  for(let i=0;i<W*H;i++) if(grid[i]?.t===caId){ anyAlive=true; break; }
+  if(!anyAlive) endCARun(caId);
+}
+
+function endCARun(caId){
+  const rule = CA_RULES[caId];
+  const state = caState.get(caId);
+  if(!state || !state.running) return;
+  state.running = false;
+  const gen = state.gen;
+  // Clean up _DEAD ghost cells
+  for(let i=0;i<W*H;i++) if(grid[i]?.t===rule.deadType) grid[i] = null;
+  if(gen > state.best){
+    state.best = gen;
+    try{ localStorage.setItem(rule.bestKey, String(state.best)); }catch(e){}
+    showEventToast(`${rule.icon} ${rule.name} RECORD`, `${gen} generations — new best!`);
+  } else {
+    showEventToast(`${rule.icon} ${rule.name} HALTED`, `Run ended at gen ${gen} · Best: ${state.best}`);
+  }
+  state.lastPlacedTime = 0;
+  state.x0 = 0; state.y0 = 0; state.x1 = W-1; state.y1 = H-1;
+}
+
+// Death-cell decay (shared between all CAs via switch in stepParticle)
+function stepCADead(x, y, p){
+  if(p.age >= 5) grid[idx(x,y)] = null;
 }
 
 // ================================================================
@@ -4040,6 +4296,33 @@ function simStep(){
     lastBacteriaPlacedTime=0;
   }
   if(bacteriaRunning&&tickCount%BACTERIA_TICK_RATE===0)stepBacteriaGoL();
+
+  // --- Generic CAs (REPLICATOR / BLOOM / INVERSION) — auto-activate 5s after
+  // last placement. Caps total concurrent CAs at 3 (incl. MACHINE+BACTERIA).
+  for(const caIdStr of Object.keys(CA_RULES)){
+    const caId = parseInt(caIdStr);
+    const state = caState.get(caId);
+    const rule = CA_RULES[caId];
+    if(!state.running && state.lastPlacedTime>0 &&
+       Date.now()-state.lastPlacedTime >= MACHINE_ACTIVATION_DELAY){
+      // Cap check — refuse activation if 3 CAs are already running
+      if(_activeCACount() >= 3){
+        showEventToast(`${rule.icon} ${rule.name} BLOCKED`,
+          '3-CA simultaneous limit reached — stop another first');
+        state.lastPlacedTime = 0;
+        continue;
+      }
+      let any=false;
+      for(let i=0;i<W*H;i++){ if(grid[i]?.t===caId){ any=true; break; } }
+      if(any){
+        state.x0=0; state.y0=0; state.x1=W-1; state.y1=H-1;
+        state.running=true; state.gen=0;
+        showEventToast(`${rule.icon} ${rule.name} ACTIVATED`, 'CA pattern begins!');
+      }
+      state.lastPlacedTime = 0;
+    }
+    if(state.running && tickCount%rule.tickRate===0) stepCA(caId);
+  }
 
   // --- QUARK (Wireworld) — runs continuously, no activation delay needed
   // Conductors are stable until an electron head is injected, so no runaway risk.
@@ -4760,6 +5043,36 @@ function drawAt(cx,cy){
           if(Math.random()<0.40){
             const ec=grid[idx(px,py)];if(ec?.g)popDecr(ec);
             grid[idx(px,py)]={t:T.MACHINE,age:0,dormant:true};
+          }
+          break;
+        }
+        case 'replicator':{
+          const st=caState.get(T.REPLICATOR);
+          if(st.running)break;
+          st.lastPlacedTime=Date.now();
+          if(Math.random()<0.40){
+            const ec=grid[idx(px,py)];if(ec?.g)popDecr(ec);
+            grid[idx(px,py)]={t:T.REPLICATOR,age:0};
+          }
+          break;
+        }
+        case 'bloom':{
+          const st=caState.get(T.BLOOM);
+          if(st.running)break;
+          st.lastPlacedTime=Date.now();
+          if(Math.random()<0.40){
+            const ec=grid[idx(px,py)];if(ec?.g)popDecr(ec);
+            grid[idx(px,py)]={t:T.BLOOM,age:0};
+          }
+          break;
+        }
+        case 'inversion':{
+          const st=caState.get(T.INVERSION);
+          if(st.running)break;
+          st.lastPlacedTime=Date.now();
+          if(Math.random()<0.40){
+            const ec=grid[idx(px,py)];if(ec?.g)popDecr(ec);
+            grid[idx(px,py)]={t:T.INVERSION,age:0};
           }
           break;
         }

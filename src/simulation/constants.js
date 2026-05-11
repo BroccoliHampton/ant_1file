@@ -37,9 +37,18 @@ export const T = {
   // Conway's Game of Life machines
   MACHINE:70,
   MACHINE_DEAD:71,
+  // Replicator CA (B1357/S1357) — self-replicating infectious patterns
+  REPLICATOR:72,
+  REPLICATOR_DEAD:73,
   // HighLife bacteria (2×2 pixel scale)
   BACTERIA:74,
   BACTERIA_DEAD:75,
+  // Bloom CA (Seeds rule B2/S∅) — explosive bloom-and-die, releases mutagen
+  BLOOM:76,
+  BLOOM_DEAD:77,
+  // Inversion CA (Day & Night B3678/S34678) — self-complementary, alien patterns
+  INVERSION:78,
+  INVERSION_DEAD:79,
   // Wireworld (Quark) — 3-state wire automaton
   QUARK_CONDUCTOR:80, // yellow wire
   QUARK_HEAD:81,      // blue electron head
@@ -122,9 +131,12 @@ export const ELEMENTS = [
   {cat:'life', key:'detritus',    label:'DETRITUS',     col:'#806545', tag:'🍂'},
   {cat:'life', key:'fungi',       label:'FUNGI',        col:'#8c32c8', tag:'🍄'},
   {cat:'life', key:'spore',       label:'SPORE',        col:'#a050dc', tag:'✦'},
-  // virus (conway's game of life) + bacteria (highlife)
+  // virus (conway's game of life) + bacteria (highlife) + new B/S CAs
   {cat:'special', key:'machine',    label:'VIRUS',       col:'#00e5ff', tag:'🦠'},
   {cat:'special', key:'bacteria',   label:'BACTERIA',    col:'#44ff88', tag:'🧫'},
+  {cat:'special', key:'replicator', label:'REPLICATOR',  col:'#dc44b8', tag:'🧬'},
+  {cat:'special', key:'bloom',      label:'BLOOM',       col:'#aaff40', tag:'🌱'},
+  {cat:'special', key:'inversion',  label:'INVERSION',   col:'#9088c0', tag:'🌗'},
   {cat:'special', key:'quark',      label:'QUARK',       col:'#ff9900', tag:'⚡'},
   // RNA preset stamps (HighLife patterns)
   {cat:'special', key:'rna1',       label:'RNA GLIDER',  col:'#66ffaa', tag:'🔬'},
