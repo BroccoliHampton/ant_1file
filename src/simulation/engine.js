@@ -130,11 +130,20 @@ const T = {
   // HighLife bacteria (2×2 pixel scale)
   BACTERIA:74,
   BACTERIA_DEAD:75,
-  // Replicator / Bloom / Inversion CAs — IDs must match constants.js
-  // (NB: 72/73 are also JELLY/WORM in this file's local T; the constants.js
-  // T.REPLICATOR/REPLICATOR_DEAD use 72/73 — collision is harmless because
-  // these are *new IDs unique within engine.js scope*. We use distinct
-  // numbers for our new CAs to avoid type collisions.)
+  // Phantom CA — Brian's Brain (3-state: alive → dying → dead)
+  PHANTOM:76,
+  PHANTOM_DYING:77,
+  PHANTOM_DEAD:78,
+  // Pyrocast — Forest Fire CA (3-state: tree → fire → ash)
+  // Bridges with real T.PLANT and T.FIRE for cascading burns
+  PYROCAST_TREE:79,
+  PYROCAST_FIRE:83,
+  PYROCAST_DEAD:86,
+  // Maze CA (B3/S12345) — generates labyrinth structures
+  MAZE:87,
+  MAZE_DEAD:88,
+  // Replicator / Bloom / Inversion CAs — separate ID space from
+  // constants.js (engine.js's local T has independent slots).
   REPLICATOR:90,
   REPLICATOR_DEAD:91,
   BLOOM:92,
@@ -2870,8 +2879,15 @@ function stepParticle(x,y){
   if(p.t===T.BACTERIA)return;
   if(p.t===T.BACTERIA_DEAD){stepBacteriaDead(x,y,p);return;}
   // Generic CAs — live cells are static between ticks; dead cells decay
-  if(p.t===T.REPLICATOR||p.t===T.BLOOM||p.t===T.INVERSION)return;
-  if(p.t===T.REPLICATOR_DEAD||p.t===T.BLOOM_DEAD||p.t===T.INVERSION_DEAD){stepCADead(x,y,p);return;}
+  if(p.t===T.REPLICATOR||p.t===T.BLOOM||p.t===T.INVERSION||
+     p.t===T.PHANTOM||p.t===T.PHANTOM_DYING||
+     p.t===T.PYROCAST_TREE||p.t===T.PYROCAST_FIRE||
+     p.t===T.MAZE) return;
+  if(p.t===T.REPLICATOR_DEAD||p.t===T.BLOOM_DEAD||p.t===T.INVERSION_DEAD||
+     p.t===T.PHANTOM_DEAD||p.t===T.MAZE_DEAD){ stepCADead(x,y,p); return; }
+  // Pyrocast 'dead' cells age in place until customStep clears them (longer
+  // life than a normal _DEAD so regrowth can use them as soil markers)
+  if(p.t===T.PYROCAST_DEAD){ p.age++; return; }
   // Fractal visual cells — just TTL decay, no physics, no creature interaction
   if(p.t===T.FRACTAL){p.ttl=(p.ttl||300)-1;p.age++;if(p.ttl<=0)grid[idx(x,y)]=null;return;}
   if(p.t===T.JULIA){p.age++;if(p.ttl!=null){p.ttl--;if(p.ttl<=0)grid[idx(x,y)]=null;}return;}
@@ -3349,6 +3365,53 @@ function getColor(p,x,y){
     r=Math.floor(140*fade);g=Math.floor(120*fade);b=Math.floor(180*fade);
     return 0xFF000000|(b<<16)|(g<<8)|r;
   }
+  // ── PHANTOM — pale cyan core, magenta dying state, gray fade ──
+  if(p.t===T.PHANTOM){
+    const pulse=Math.sin(tickCount*0.22+(x+y)*0.3)*0.3+0.7;
+    r=Math.round(150*pulse); g=Math.round(220*pulse); b=Math.round(245*pulse);
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  if(p.t===T.PHANTOM_DYING){
+    // Hot pink trailing the wave-front — signals 'about to expire'
+    const pulse=Math.sin(tickCount*0.4)*0.2+0.8;
+    r=Math.round(230*pulse); g=Math.round(60*pulse); b=Math.round(180*pulse);
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  if(p.t===T.PHANTOM_DEAD){
+    const fade=Math.max(0,1-(p.age/5));
+    r=Math.floor(140*fade);g=Math.floor(140*fade);b=Math.floor(160*fade);
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  // ── PYROCAST — green trees, orange fire, dark ashy dead ──
+  if(p.t===T.PYROCAST_TREE){
+    // Deep forest green with a slight wind-shimmer
+    const shimmer=Math.sin(tickCount*0.04+x*0.3+y*0.2)*5;
+    r=Math.max(0,30+Math.round(shimmer)); g=Math.round(120+shimmer*1.5); b=Math.round(40+shimmer);
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  if(p.t===T.PYROCAST_FIRE){
+    // Hot orange flame with random hot-spot flicker
+    if(Math.random()<0.18){r=255;g=240;b=140;}
+    else{r=255;g=Math.round(80+Math.random()*80);b=20;}
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  if(p.t===T.PYROCAST_DEAD){
+    // Dark ash — slightly browner than ASH so users can distinguish burn-scar
+    const v=Math.floor(Math.random()*8);
+    r=44+v; g=34+v; b=24+v;
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  // ── MAZE — electric-blue maze walls, mild pulse ──
+  if(p.t===T.MAZE){
+    const pulse=Math.sin(tickCount*0.08+(x+y)*0.18)*0.15+0.85;
+    r=Math.round(40*pulse); g=Math.round(190*pulse); b=Math.round(240*pulse);
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
+  if(p.t===T.MAZE_DEAD){
+    const fade=Math.max(0,1-(p.age/5));
+    r=Math.floor(40*fade); g=Math.floor(140*fade); b=Math.floor(180*fade);
+    return 0xFF000000|(b<<16)|(g<<8)|r;
+  }
   // ── Quark (Wireworld) ──
   if(p.t===T.QUARK_CONDUCTOR){
     // Warm amber wire — subtle pulse on even ticks for a "live circuit" feel
@@ -3549,6 +3612,60 @@ const CA_RULES = {
       return null;
     },
   },
+
+  // PHANTOM — Brian's Brain. 3-state CA where alive cells must pass through
+  // a 'dying' state before clearing. Births only count alive neighbors, not
+  // dying ones. Creates ghostly wave-front patterns that sweep through the
+  // grid rather than settling. dyingType marks this as a 3-state rule.
+  [T.PHANTOM]: {
+    deadType:   T.PHANTOM_DEAD,
+    dyingType:  T.PHANTOM_DYING,  // new: 3-state intermediate
+    bornSet:    new Set([2]),
+    surviveSet: new Set([]),       // no survival — all alive cells transition
+    tickRate: 24,
+    name: 'PHANTOM',
+    icon: '🌀',
+    bestKey: 'pt_phantom_best',
+    // Ghost touch — drains a tiny bit of HP from adjacent creatures. Subtle
+    // per tick but compounds over a long run.
+    onContact(nbrCell){
+      if(nbrCell?.g && Math.random() < 0.10){
+        nbrCell.hp = Math.max(1, (nbrCell.hp || 100) - 1);
+      }
+      return null;
+    },
+  },
+
+  // PYROCAST — Forest Fire CA. Custom rule rather than B/S:
+  //   TREE  → FIRE if any neighbor is FIRE (CA or real T.FIRE/T.LAVA),
+  //           or with rare lightning chance
+  //   FIRE  → DEAD next tick
+  //   DEAD  → empty after ~8 ticks (regrowth zone)
+  //   Empty adjacent to TREE → TREE with low probability (regrowth)
+  // Also bridges into the real ecosystem: PYROCAST_FIRE ignites real PLANT
+  // cells into real T.FIRE, and real T.FIRE/T.LAVA ignites adjacent
+  // PYROCAST_TREE. Drop a Pyrocast cluster near a forest for cascading burns.
+  [T.PYROCAST_TREE]: {
+    deadType:  T.PYROCAST_DEAD,
+    tickRate: 18,
+    name: 'PYROCAST',
+    icon: '🔥',
+    bestKey: 'pt_pyrocast_best',
+    customStep: stepPyrocastCA,  // hoisted function defined below
+  },
+
+  // MAZE — B3/S12345. Live cells with 1-5 neighbors survive; dead cells
+  // with exactly 3 neighbors are born. Famous for generating labyrinth-like
+  // patterns. No special interactions — the visual structure is the point.
+  [T.MAZE]: {
+    deadType:   T.MAZE_DEAD,
+    bornSet:    new Set([3]),
+    surviveSet: new Set([1,2,3,4,5]),
+    tickRate: 28,
+    name: 'MAZE',
+    icon: '🧱',
+    bestKey: 'pt_maze_best',
+  },
 };
 
 // Per-CA-type runtime state: bounding box, run flag, generation counter,
@@ -3579,6 +3696,10 @@ function _activeCACount(){
 function stepCA(caId){
   const rule = CA_RULES[caId];
   const state = caState.get(caId);
+  // Bespoke rule (forest fire, etc.) — delegate entirely
+  if(rule.customStep) return rule.customStep(caId, state);
+  // 3-state rule (Brian's Brain) — different dispatch path
+  if(rule.dyingType) return stepCA3State(caId);
   // Snapshot live cells
   const liveCells = [];
   for(let i=0;i<W*H;i++) if(grid[i]?.t===caId) liveCells.push(i);
@@ -3661,11 +3782,176 @@ function stepCA(caId){
   if(!anyAlive) endCARun(caId);
 }
 
+// ─── 3-state CA evaluator (Brian's Brain pattern) ─────────────────
+// Used for any rule with `dyingType` set. Transitions per generation:
+//   - All live cells become 'dying'
+//   - All 'dying' cells become empty
+//   - Empty cells with bornSet matches on *live* neighbors only → live
+// Births do NOT count dying cells, so the wave-front pattern propagates.
+function stepCA3State(caId){
+  const rule  = CA_RULES[caId];
+  const state = caState.get(caId);
+  const dyingId = rule.dyingType;
+
+  const liveCells = [], dyingCells = [];
+  for(let i=0;i<W*H;i++){
+    const t = grid[i]?.t;
+    if(t===caId) liveCells.push(i);
+    else if(t===dyingId) dyingCells.push(i);
+  }
+  if(!liveCells.length && !dyingCells.length){ endCARun(caId); return; }
+  state.gen++;
+
+  // Empty cells we need to evaluate for birth = neighbors of live cells only
+  const toEval = new Set();
+  for(const i of liveCells){
+    const x=i%W, y=Math.floor(i/W);
+    for(const[nx,ny] of getNeighbors(x,y)){
+      const ni = idx(nx,ny);
+      if(!grid[ni]) toEval.add(ni);
+    }
+  }
+
+  // Compute births
+  const births = [];
+  for(const i of toEval){
+    const x=i%W, y=Math.floor(i/W);
+    let liveN=0, hazard=false;
+    for(const[nx,ny] of getNeighbors(x,y)){
+      const n = grid[idx(nx,ny)];
+      if(!n) continue;
+      if(n.t===caId) liveN++;
+      else if(n.t===T.WATER||n.t===T.STEAM||n.t===T.ICE) hazard=true;
+      else if(n.t===T.FIRE||n.t===T.LAVA||n.t===T.BLOOM_FIRE) hazard=true;
+      else if(n.t===T.ACID) hazard=true;
+    }
+    if(rule.bornSet.has(liveN) && !hazard){
+      const inUni = x>=state.x0 && x<=state.x1 && y>=state.y0 && y<=state.y1;
+      if(inUni) births.push(i);
+    }
+  }
+
+  // Apply transitions in order: live→dying, dying→empty, empty→live
+  for(const i of liveCells)  grid[i] = { t: dyingId, age: 0 };
+  for(const i of dyingCells) grid[i] = null;
+  for(const i of births){ if(!grid[i]) grid[i] = { t: caId, age: 0 }; }
+
+  // Contact interactions on the (formerly live, now dying) cells
+  if(rule.onContact){
+    for(const i of liveCells){
+      const x=i%W, y=Math.floor(i/W);
+      for(const[nx,ny] of getNeighbors(x,y)){
+        const ni = idx(nx,ny);
+        const result = rule.onContact(grid[ni], x, y, nx, ny);
+        if(result) grid[ni] = result;
+      }
+    }
+  }
+
+  // End if extinct (no live and no dying)
+  let anyAlive=false;
+  for(let i=0;i<W*H;i++){
+    const t = grid[i]?.t;
+    if(t===caId || t===dyingId){ anyAlive=true; break; }
+  }
+  if(!anyAlive) endCARun(caId);
+}
+
+// ─── Pyrocast forest-fire custom step ─────────────────────────────
+// Three states: TREE (alive), FIRE (burning), DEAD (ash, regrowth-able).
+// Transitions:
+//   TREE → FIRE if any neighbor is FIRE (CA) or real T.FIRE/T.LAVA, OR
+//          rare lightning chance
+//   FIRE → DEAD next tick
+//   DEAD → empty after age >= 8 (allows tree regrowth)
+//   Empty adjacent to TREE → TREE with 0.0005 chance (slow regrowth)
+// Ecosystem bridge: PYROCAST_FIRE ignites real PLANT cells into real T.FIRE.
+function stepPyrocastCA(caId, state){
+  state.gen++;
+
+  // Snapshot all PYROCAST cells in one pass
+  const trees = [], fires = [], deads = [];
+  for(let i=0;i<W*H;i++){
+    const t = grid[i]?.t;
+    if(t===T.PYROCAST_TREE) trees.push(i);
+    else if(t===T.PYROCAST_FIRE) fires.push(i);
+    else if(t===T.PYROCAST_DEAD) deads.push(i);
+  }
+  if(!trees.length && !fires.length){ endCARun(caId); return; }
+
+  // Pending writes — apply after the read pass so cells transition coherently
+  const writes = new Map();
+
+  // 1. Trees ignite from fire neighbors or rare lightning
+  for(const i of trees){
+    const x=i%W, y=Math.floor(i/W);
+    let ignite = Math.random() < 0.00006;
+    if(!ignite){
+      for(const[nx,ny] of getNeighbors(x,y)){
+        const nt = grid[idx(nx,ny)]?.t;
+        if(nt===T.PYROCAST_FIRE || nt===T.FIRE || nt===T.LAVA){ ignite = true; break; }
+      }
+    }
+    if(ignite) writes.set(i, { t:T.PYROCAST_FIRE, age:0 });
+  }
+
+  // 2. Fires become dead (1-tick burn)
+  for(const i of fires) writes.set(i, { t:T.PYROCAST_DEAD, age:0 });
+
+  // 3. Old dead cells clear to empty (regrowth potential)
+  for(const i of deads){
+    if(grid[i].age >= 8) writes.set(i, null);
+  }
+
+  // 4. Empty cells adjacent to trees → tree (slow regrowth)
+  for(const i of trees){
+    const x=i%W, y=Math.floor(i/W);
+    for(const[nx,ny] of getNeighbors(x,y)){
+      const ni = idx(nx,ny);
+      if(grid[ni] || writes.has(ni)) continue;
+      if(Math.random() < 0.0005) writes.set(ni, { t:T.PYROCAST_TREE, age:0 });
+    }
+  }
+
+  // Apply all writes
+  for(const[i, v] of writes){ grid[i] = v; }
+
+  // Ecosystem bridge: PYROCAST_FIRE ignites real PLANT cells into real FIRE.
+  // (Iterates the OLD fire list — newly-converted fires from this tick will
+  // do this next tick.)
+  for(const i of fires){
+    const x=i%W, y=Math.floor(i/W);
+    for(const[nx,ny] of getNeighbors(x,y)){
+      const n = grid[idx(nx,ny)];
+      if(n?.t === T.PLANT && Math.random() < 0.35){
+        popDecr(n);
+        grid[idx(nx,ny)] = { t:T.FIRE, age:0, ttl:40+Math.floor(Math.random()*30) };
+      }
+    }
+  }
+
+  // End if no trees and no fires remain
+  let anyAlive=false;
+  for(let i=0;i<W*H;i++){
+    const t = grid[i]?.t;
+    if(t===T.PYROCAST_TREE || t===T.PYROCAST_FIRE){ anyAlive=true; break; }
+  }
+  if(!anyAlive){
+    // Clean up any leftover dead cells before ending run
+    for(let i=0;i<W*H;i++) if(grid[i]?.t===T.PYROCAST_DEAD) grid[i] = null;
+    endCARun(caId);
+  }
+}
+
 function endCARun(caId){
   const rule = CA_RULES[caId];
   const state = caState.get(caId);
   if(!state || !state.running) return;
   state.running = false;
+  // Sweep up any intermediate-state cells (3-state rules) too
+  if(rule.dyingType){
+    for(let i=0;i<W*H;i++) if(grid[i]?.t===rule.dyingType) grid[i] = null;
+  }
   const gen = state.gen;
   // Clean up _DEAD ghost cells
   for(let i=0;i<W*H;i++) if(grid[i]?.t===rule.deadType) grid[i] = null;
@@ -5084,6 +5370,36 @@ function drawAt(cx,cy){
           if(Math.random()<0.40){
             const ec=grid[idx(px,py)];if(ec?.g)popDecr(ec);
             grid[idx(px,py)]={t:T.INVERSION,age:0};
+          }
+          break;
+        }
+        case 'phantom':{
+          const st=caState.get(T.PHANTOM);
+          if(st.running)break;
+          st.lastPlacedTime=Date.now();
+          if(Math.random()<0.40){
+            const ec=grid[idx(px,py)];if(ec?.g)popDecr(ec);
+            grid[idx(px,py)]={t:T.PHANTOM,age:0};
+          }
+          break;
+        }
+        case 'pyrocast':{
+          const st=caState.get(T.PYROCAST_TREE);
+          if(st.running)break;
+          st.lastPlacedTime=Date.now();
+          if(Math.random()<0.40){
+            const ec=grid[idx(px,py)];if(ec?.g)popDecr(ec);
+            grid[idx(px,py)]={t:T.PYROCAST_TREE,age:0};
+          }
+          break;
+        }
+        case 'maze':{
+          const st=caState.get(T.MAZE);
+          if(st.running)break;
+          st.lastPlacedTime=Date.now();
+          if(Math.random()<0.40){
+            const ec=grid[idx(px,py)];if(ec?.g)popDecr(ec);
+            grid[idx(px,py)]={t:T.MAZE,age:0};
           }
           break;
         }

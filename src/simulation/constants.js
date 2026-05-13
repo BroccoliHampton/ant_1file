@@ -137,6 +137,9 @@ export const ELEMENTS = [
   {cat:'special', key:'replicator', label:'REPLICATOR',  col:'#dc44b8', tag:'🧬'},
   {cat:'special', key:'bloom',      label:'BLOOM',       col:'#aaff40', tag:'🌱'},
   {cat:'special', key:'inversion',  label:'INVERSION',   col:'#9088c0', tag:'🌗'},
+  {cat:'special', key:'phantom',    label:'PHANTOM',     col:'#82d8f4', tag:'🌀'},
+  {cat:'special', key:'pyrocast',   label:'PYROCAST',    col:'#3e9038', tag:'🔥'},
+  {cat:'special', key:'maze',       label:'MAZE',        col:'#28bee0', tag:'🧱'},
   {cat:'special', key:'quark',      label:'QUARK',       col:'#ff9900', tag:'⚡'},
   // RNA preset stamps (HighLife patterns)
   {cat:'special', key:'rna1',       label:'RNA GLIDER',  col:'#66ffaa', tag:'🔬'},
