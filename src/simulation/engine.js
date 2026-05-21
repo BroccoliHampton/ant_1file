@@ -2,7 +2,7 @@
 // Wraps the legacy simulation JS in a module that exports createEngine.
 // The legacy code is adapted to run without direct DOM access at import time.
 
-import { W, H, S } from './constants.js';
+import { W, H, S, T as T_CONSTANTS } from './constants.js';
 
 // ─── Stub DOM helper ─────────────────────────────────────────────
 // Returns a safe no-op stub when an element doesn't exist in React's DOM
@@ -159,6 +159,39 @@ const T = {
   JULIA:85,           // Cyclic Cellular Automaton (CCA)
   CUSTOM_BASE:100, // custom lab creatures start at 100+
 };
+
+// ─── T-enum divergence guard ────────────────────────────────────────
+// engine.js (above) and constants.js each define a separate `T` enum.
+// Most numeric IDs agree, but a few intentionally diverge (e.g. engine
+// uses JELLY=72 where constants uses REPLICATOR=72, because the React
+// code never reads grid cells by type ID — only the engine does). This
+// guard logs a single warning at module load if any *shared key name*
+// has *mismatched values*, which would mean an accidental rename, not
+// an intentional divergence. Cheap defense; no perf cost in steady state.
+// Keys we deliberately diverge on (this list is the contract — keep
+// these in sync with the local-T `// ... — engine.js's local T has
+// independent slots` comments above):
+const _T_INTENTIONAL_DIVERGENCES = new Set([
+  'REPLICATOR','REPLICATOR_DEAD','BLOOM','BLOOM_DEAD','INVERSION','INVERSION_DEAD',
+  'PHANTOM','PHANTOM_DYING','PHANTOM_DEAD',
+  'PYROCAST_TREE','PYROCAST_FIRE','PYROCAST_DEAD',
+  'MAZE','MAZE_DEAD',
+  'CUSTOM_ELEMENT', // engine.js lacks this; constants.js has 90 (works by accident)
+]);
+(function _verifyTEnums(){
+  if(!T_CONSTANTS) return;
+  const conflicts = [];
+  for(const k of Object.keys(T)){
+    if(_T_INTENTIONAL_DIVERGENCES.has(k)) continue;
+    if(k in T_CONSTANTS && T[k] !== T_CONSTANTS[k]){
+      conflicts.push(`${k}: engine=${T[k]} constants=${T_CONSTANTS[k]}`);
+    }
+  }
+  if(conflicts.length){
+    console.warn('[Pixel Terrarium] T-enum divergence — these shared keys have mismatched values. Either rename one side or sync the values:');
+    for(const c of conflicts) console.warn('  • ' + c);
+  }
+})();
 
 // Fridge zones — {x1,y1,x2,y2} bounding boxes; mutagen inside = frozen
 let fridgeZones=[];
