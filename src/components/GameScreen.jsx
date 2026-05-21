@@ -2,8 +2,6 @@ import StatusRibbon from './StatusRibbon.jsx'
 import CanvasZone from './CanvasZone.jsx'
 import Console from './Console/Console.jsx'
 import MenuDrawer from './MenuDrawer.jsx'
-import TerraChat from './TerraChat.jsx'
-import TerraFab from './TerraFab.jsx'
 import ElementLab from './ElementLab.jsx'
 import PerfOverlay from './PerfOverlay.jsx'
 import { useSimStore } from '../store/simStore.js'
@@ -12,8 +10,6 @@ import { useEffect } from 'react'
 const ELEM_STORAGE_KEY = 'pt_custom_elements_v1'
 
 export default function GameScreen({ theme, onToggleTheme }) {
-  const terraOpen = useSimStore(s => s.terraOpen)
-  const setTerraOpen = useSimStore(s => s.setTerraOpen)
   const engine = useSimStore(s => s.engine)
   const bumpCustomElements = useSimStore(s => s.bumpCustomElements)
 
@@ -50,8 +46,6 @@ export default function GameScreen({ theme, onToggleTheme }) {
       <CanvasZone />
       <Console />
       <MenuDrawer />
-      <TerraFab />
-      <TerraChat open={terraOpen} onClose={() => setTerraOpen(false)} />
       <ElementLab />
       <PerfOverlay />
 

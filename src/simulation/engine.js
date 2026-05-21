@@ -450,7 +450,7 @@ let imageData,pixels;
 
 // Population counters (fast, updated each tick)
 const POP={[T.PLANT]:0,[T.ANT]:0,[T.TERMITE]:0,[T.QUEEN]:0,[T.QUEEN_TERMITE]:0,[T.SPIDER]:0,[T.FUNGI]:0,[T.WASP]:0,[T.QUEEN_SPIDER]:0,[T.QUEEN_WASP]:0};
-const POP_MAX={[T.PLANT]:800,[T.ANT]:300,[T.TERMITE]:250,[T.QUEEN]:100,[T.QUEEN_TERMITE]:40,[T.SPIDER]:120,[T.FUNGI]:300,[T.WASP]:200,[T.QUEEN_SPIDER]:25,[T.QUEEN_WASP]:10};
+const POP_MAX={[T.PLANT]:800,[T.ANT]:300,[T.TERMITE]:180,[T.QUEEN]:100,[T.QUEEN_TERMITE]:40,[T.SPIDER]:120,[T.FUNGI]:300,[T.WASP]:200,[T.QUEEN_SPIDER]:25,[T.QUEEN_WASP]:10};
 
 // Population history — sampled every 100 ticks, max 80 samples kept
 const POP_HISTORY={

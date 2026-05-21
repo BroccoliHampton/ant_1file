@@ -6,13 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:ios": "vite build && npx cap copy ios && npx cap sync ios",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
     "@capacitor/core": "^8.3.0",
     "@capacitor/ios": "^8.3.0",
-    "@mlc-ai/web-llm": "^0.2.82",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5.0.12"

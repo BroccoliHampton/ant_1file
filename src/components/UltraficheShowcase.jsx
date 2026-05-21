@@ -124,14 +124,14 @@ export default function UltraficheShowcase({ onClose }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
             <button className="uf-chrome-disc uf-pressable" style={{ fontSize: 18 }}>🌱</button>
             <div style={{ flex: 1 }}>
-              <p className="uf-chunky" style={{ color: '#fff', fontSize: 14, marginBottom: 2 }}>TERRA</p>
-              <p className="uf-label uf-silver-text uf-label-sm">LOCAL AI · ONLINE</p>
+              <p className="uf-chunky" style={{ color: '#fff', fontSize: 14, marginBottom: 2 }}>ECOSYSTEM</p>
+              <p className="uf-label uf-silver-text uf-label-sm">PRIMORDIAL ERA · STABLE</p>
             </div>
             <span className="uf-chrome-pill uf-neon-text-green" style={{ fontSize: 9 }}>● ACTIVE</span>
           </div>
           <p style={{ color: '#bbb', fontSize: 11, lineHeight: 1.5 }}>
-            "Your terrarium is going strong — 45 ants, 12 spiders, 3 wasps. Plant
-            biomass is high; fungi could use a boost in the dark zones."
+            45 ants, 12 spiders, 3 wasps. Plant biomass is high; fungi could
+            use a boost in the dark zones.
           </p>
         </div>
       </Section>

@@ -19,8 +19,6 @@ export const useSimStore = create((set, get) => ({
   hasBacteriaCells: false,
   menuOpen: false,
   setMenuOpen: (val) => set({ menuOpen: val }),
-  terraOpen: false,
-  setTerraOpen: (val) => set({ terraOpen: val }),
   elementLabOpen: false,
   setElementLabOpen: (val) => set({ elementLabOpen: val }),
   // Bumped whenever a custom element is saved/deleted so the toolbar tray refreshes.
